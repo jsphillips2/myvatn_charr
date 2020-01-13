@@ -1,4 +1,4 @@
-Mývatn Arctic Charr
+myvatn_charr
 ========
 
 Analyses associated with the manuscript "Estimating time-varying demographic rates from age-structured abundance: application to a historically variable fishery."
