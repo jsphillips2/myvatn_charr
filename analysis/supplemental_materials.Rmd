@@ -1,0 +1,364 @@
+---
+title: 'Supplemental Materials'
+subtitle: 'Estimating time-varying demographic rates from age-structured abundance: application to a historically variable fishery'
+author:
+  - name: Joseph S. Phillips, Anthony R. Ives, Guðni Guðbergsson
+affil: 
+  - name: Department of Integrative Biology, University of Wisconsin--Madison 
+  - name: Department of Aquaculture and Fish Biology, Hólar University, Skagafjörður, Iceland
+  - name: Marine and Freshwater Research Institute, Reykjavik, Iceland
+fontsize: 12pt
+geometry: margin=1in,letterpaper
+documentclass: article
+mainfont: "Times New Roman"
+mathfont: "Times New Roman"
+graphics: true
+colorlinks: true
+supplemental: true
+mathspec: true
+output:
+    bookdown::pdf_document2:
+        fig_caption: yes
+        number_sections: yes
+        template: template.tex
+        latex_engine: xelatex
+        toc: yes
+        toc_depth: 2
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE, cache = FALSE}
+# load packages
+suppressPackageStartupMessages({
+  library(knitr)
+  library(bookdown)
+  library(tidyverse)
+  library(rstan)
+  library(hdrcde)
+  library(truncnorm)
+  library(kableExtra)
+})
+
+# set directory
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+
+# set theme
+theme_set(theme_bw() %+replace% 
+            theme(panel.grid = element_blank(),
+                  strip.background = element_blank(),
+                  legend.margin = margin(0,0,0,0),
+                  strip.text = element_text(size=10),
+                  legend.text = element_text(size=10),
+                  axis.text=element_text(size=10, color="black"),
+                  axis.title.y=element_text(angle = 90 ,margin=margin(0,15,0,0)),
+                  axis.title.y.right=element_text(angle = -90 ,margin=margin(0,0,0,15)),
+                  axis.title.x=element_text(margin=margin(15,0,0,0))))
+```
+
+# Preliminary data exploration
+
+```{r setup2, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
+
+# raw data
+raw_data <-  read_csv("data/myvatn_char_clean.csv") %>%
+  #Fill gaps in "Est.age"
+  mutate(est_age = ifelse(is.na(age)==F, age, est_age)
+  ) %>%
+  #Remove June data & samples without ages
+  filter(month != 6, is.na(est_age)==F) %>%
+  #Define Stage
+  mutate(stage = factor(ifelse(est_age == 1, "first", 
+                          ifelse(est_age==2, "second", 
+                                 ifelse(est_age==3, "third", "adult"))),
+                        levels = c("first","second","third","adult")),
+         area = ifelse(area_1 == 11, 7 ,
+                       ifelse(area_1 == 12, 8, area_1)))
+
+```
+
+```{r sites, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=7, fig.width=7, fig.cap="Surveyed abundance of Myvatn's Arctic charr, plotted by survy location through time (thin lines) on a log-scale. The thick line shows the mean across sites"}
+
+site_counts <-  raw_data %>%
+  group_by(year, stage, area) %>%
+  #Count number of fish
+  summarize(
+    count = length(length) 
+  ) %>%
+  #Merge with stage_year to keep track of 0's
+  full_join(raw_data %>% expand(stage, year, area)) %>% 
+  #Repalce NA's with 1's
+  #This only affects data for 1st year fish, which aren't used in the model
+  mutate(
+    count = ifelse(is.na(count)==T, 1L, count) 
+  ) %>%
+  ungroup()
+
+site_counts %>%
+  ggplot(aes(year, count))+
+  facet_wrap(~stage)+
+  geom_line(aes(group = area), size = 0.3, alpha = 0.5)+
+  geom_line(data = site_counts %>% group_by(stage, year) %>% summarize(count = mean(count,na.rm=T)),
+            size = 0.9)+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_y_continuous("Abundance by site",trans="log",breaks=c(1,10,100))
+```
+
+\clearpage
+
+```{r cohorts, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=4, fig.width=5, fig.cap="Surveyed abundance of Myvatn's Arctic charr, plotted by cohort against age on a log-scale."}
+
+cohorts <- raw_data %>%
+  group_by(est_age, year) %>%
+  summarize(count = length(na.omit(length))) %>%
+  ungroup() %>%
+  mutate(cohort = year - est_age,
+         cohort = cohort - min(cohort) + 1) %>%
+  group_by(cohort) %>%
+  {full_join(., expand(., cohort = min(cohort):max(cohort), est_age = min(est_age):max(est_age)))} %>%
+  mutate(
+    count = ifelse(is.na(count)==T | count == 0, 1L, count) 
+  )
+
+cohorts %>%
+  ggplot(aes(est_age, count))+
+  geom_line(aes(group = cohort), alpha = 0.8)+
+  scale_y_continuous("Abundance by cohort",trans="log",breaks=c(3,30,300))+
+  scale_x_continuous("Cohort age",breaks = 3*(1:4)-1)
+```
+
+\clearpage
+
+# Systematic detection bias 
+
+```{r setup3, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
+
+# import model fits
+bias_models <- c("model_full","model_full_bias") 
+bias_fits <- lapply(bias_models, function(x){
+  read_csv(paste0("model/output/",x,"/fit_summary.csv")) %>%
+    mutate(stage = factor(stage, levels = 1:4, labels=c("age 1","age 2","age 3","adult")),
+           year = time + 1985,
+           model = x) 
+}) %>%
+  bind_rows() %>%
+  mutate(model = factor(model, levels = bias_models, labels = c("No Bias", "Bias")))
+
+# import sensitivies
+bias_sens <- lapply(bias_models, function(x){
+  read_csv(paste0("analysis/demographic_output/",x,"/sensitivities.csv")) %>%
+    mutate(model = x)
+}) %>%
+  bind_rows() %>%
+  mutate(model = factor(model, levels = bias_models, labels = c("No Bias", "Bias")))
+
+# import variance paritioning
+bias_var = lapply(bias_models, function(x){
+  read_csv(paste0("analysis/demographic_output/",x,"/var_par.csv")) %>%
+    mutate(model = x)
+}) %>%
+  bind_rows() %>%
+  mutate(model = factor(model, levels = bias_models, labels = c("No Bias", "Bias")))
+
+```
+
+```{r bias-abundance, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=7, fig.width=5, fig.cap="Fit of the full model to the surveyed abundance of Mývatn's Arctic charr population, estimated either with (green) or without (black) the imposition of a systematic detection bias against age class 2 relative to the other age classes. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+bias_fits %>%
+  filter(name == "N",stage!="age 1") %>%
+  ggplot(aes(year, middle, color = model, fill = model))+
+  facet_wrap(~stage, nrow = 3)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  scale_color_manual("Model",values=c("black","forestgreen"))+
+  scale_fill_manual("Model",values=c("black","forestgreen"))+
+  scale_y_continuous("Survey abundance",trans="log",breaks=c(3,30,300))+  
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  theme(panel.spacing.y=unit(0.75, "lines"), 
+        strip.text = element_text(margin = margin(0,0,5,0)))
+
+```
+
+\clearpage
+
+```{r bias-rho, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3.5, fig.width=5, fig.cap="Per capita recruitment from the full model, estimated either with (green) or without (black) the imposition of a systematic detection bias against age class 2 relative to the other age classes. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+bias_fits %>%
+  filter(name == "rho_scale") %>%
+  ggplot(aes(year, middle,color = model, fill = model))+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  scale_color_manual("Model",values=c("black","forestgreen"))+
+  scale_fill_manual("Model",values=c("black","forestgreen"))+
+  scale_y_continuous("Per capita recruitment", trans="log", breaks=c(1,4,16))+
+  scale_x_continuous("Year", limits=c(1986,2017))
+
+```
+
+\clearpage
+
+```{r bias-phi, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=7, fig.width=5, fig.cap="Age-specific survival probability from the full model, estimated either with (green) or without (black) the imposition of a systematic detection bias against age class 2 relative to the other age classes. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+bias_fits %>%
+  filter(name == "phi") %>% 
+  group_by(stage, model) %>%
+  ggplot(aes(year, middle, color = model, fill = model))+
+  facet_wrap(~stage, nrow = 3)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  scale_color_manual("Model",values=c("black","forestgreen"))+
+  scale_fill_manual("Model",values=c("black","forestgreen"))+
+  scale_y_continuous("Survival probability (centered)")+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  theme(strip.text = element_text(margin = margin(0,0,5,0)))
+
+```
+
+\clearpage
+
+```{r bias-lam, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3.5, fig.width=5, fig.cap="Asymptotic per capita growth rate from the full model, estimated either with (green) or without (black) the imposition of a systematic detection bias against age class 2 relative to the other age classes. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+bias_sens %>%
+  filter(name == "lambda") %>%
+  ggplot(aes(year, middle, color = model))+
+  geom_hline(yintercept = 1, size = 0.3, linetype = 2)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = model), linetype=0, alpha = 0.075)+
+  geom_line(size = 1)+
+  scale_color_manual("Model",values=c("black","forestgreen"))+
+  scale_fill_manual("Model",values=c("black","forestgreen"))+
+  scale_y_continuous("Per capita population\ngrowth rate", trans="log", 
+                     breaks=c(0.7,1,1.4), limits = c(0.6,1.6))+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  guides(color = guide_legend(keyheight = 2))
+
+```
+
+\clearpage
+
+```{r bias-var, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3.5, fig.width=5, fig.cap="Variance partitioning of the per capita growth rate from the full model, estimated either with (green) or without (black) the imposition of a systematic detection bias against age class 2 relative to the other age classes. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+labels = c("rho[t]","phi[t]^2","phi[t]^3","phi[t]^4")
+bias_var %>% 
+  filter(name!="s21") %>%
+  mutate(pos = as.numeric(as.factor(name)) + ifelse(model == "No Bias", -0.1, 0.1)) %>%
+  ggplot(aes(pos, middle, color = model))+
+  geom_hline(yintercept=0, alpha=0.3, linetype=2)+
+  geom_point(size=3)+
+  geom_errorbar(aes(ymin=lower16, ymax=upper84), width=0.1, size=0.5)+
+  scale_color_manual("Model",values=c("black","forestgreen"))+
+  scale_y_continuous("Contribution to variance in\npopulation growth rate")+
+  scale_x_continuous("Demographic rate",
+                     breaks = c(1:4),
+                     labels = parse(text = labels),
+                     limits=c(0.5,4.5))
+
+```
+
+\clearpage
+
+# Reduced models
+
+```{r setup4, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
+
+# specify models
+models <- c("model_full","model_rho","model_phi","model_fixed") 
+
+# model fits
+model_fits <- lapply(models, function(x){
+  read_csv(paste0("model/output/",x,"/fit_summary.csv")) %>%
+    mutate(stage = factor(stage, levels = 1:4, labels=c("age 1","age 2","age 3.5","adult")),
+           year = time + 1985,
+           model = x) 
+}) %>%
+  bind_rows() %>%
+  mutate(model = factor(model, levels = models))
+
+```
+
+```{r reduced-rho, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3.5, fig.width=5, fig.cap="Per capita recruitment, estimated either from the full model (black) or Variable Recruitment (red). The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+model_fits %>%
+  filter(model %in% c("model_full","model_rho"),name == "rho_scale") %>%
+  mutate(model = factor(model,
+                        levels = c("model_full","model_rho") ,
+                        labels = c("Full Model","Variable\nRecruitment")))  %>%
+  ggplot(aes(year, middle, color = model))+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = model), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  scale_color_manual("",values=c("black","firebrick2"))+
+  scale_fill_manual("",values=c("gray20","firebrick2"))+
+  scale_y_continuous("Per capita recruitment", trans="log", breaks=c(1,4,16))+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  theme(panel.spacing.y=unit(0.75, "lines"), 
+        strip.text = element_text(margin = margin(0,0,5,0)))+
+  guides(color = guide_legend(keyheight = 2))
+
+```
+
+\clearpage
+
+```{r reduced-phi, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=7, fig.width=5, fig.cap="Age-specific survival probability, estimated either from the full model (black) or Variable Survival (blue). The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+model_fits %>%
+  filter(model %in% c("model_full","model_phi"),name == "phi") %>%
+  mutate(model = factor(model,
+                        levels = c("model_full","model_phi") ,
+                        labels = c("Full Model","Variable\nSurvival")))  %>%
+  ggplot(aes(year, middle, color = model))+
+  facet_wrap(~stage, nrow = 3)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = model), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  scale_color_manual("",values=c("black","dodgerblue2"))+
+  scale_fill_manual("",values=c("gray20","dodgerblue2"))+
+  scale_y_continuous("Survival probability")+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  theme(panel.spacing.y=unit(0.75, "lines"), 
+        strip.text = element_text(margin = margin(0,0,5,0)))+
+  guides(color = guide_legend(keyheight = 2))
+
+```
+
+\clearpage
+
+# Demographic analysis
+
+```{r setup5, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
+
+# import sensitivies
+full_sens <- read_csv("analysis/demographic_output/model_full/sensitivities.csv") 
+
+ela_ref <- read_csv("analysis/demographic_output/model_full/elas_ref.csv") %>% as.matrix()
+```
+
+```{r real-asymp, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3.5, fig.width=5, fig.cap="Realized (brown) and asymptotic (black) per capita growth rates from the full model. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+full_sens %>%
+  filter(name == "lambda") %>%
+  mutate(type = "Asymptotic") %>%
+  select(year, lower16, middle, upper84, type) %>%
+  bind_rows(model_fits %>%
+              filter(name == "lambda", model == "model_full") %>%
+              mutate(type = "Realized")) %>%
+  select(year, lower16, middle, upper84, type) %>%
+  ggplot(aes(year, middle, color = type))+
+  geom_hline(yintercept = 1, size = 0.3, linetype = 2)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = type), linetype=0, alpha = 0.075)+
+  geom_line(size = 1)+
+  scale_color_manual("",values=c("black","brown4"))+
+  scale_fill_manual("",values=c("black","brown3"))+
+  scale_y_continuous("Per capita population\ngrowth rate", trans="log", breaks=c(0.6,1,1.7))+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  guides(color = guide_legend(keyheight = 2))
+
+```
+
+\clearpage
+
+```{r echo = FALSE}
+tibble("Demographic parameter" = 
+         c("Recruitment","Age 1 Survival","Age 2 Survival","Age 3 Survival","Adult Survival"),
+       "Elasticity" = c(ela_ref[1,4],ela_ref[2,1],ela_ref[3,2],ela_ref[4,3],ela_ref[4,4])) %>%
+  kable("latex", booktabs = T, digits = 3, 
+        caption = "Elasticities from mean matrix of mean demographic rates") %>%
+  kable_styling(font_size = 12, full_width = T)
+```

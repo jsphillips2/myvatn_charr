@@ -1,0 +1,433 @@
+---
+fontsize: 12pt
+geometry: margin=1in,letterpaper
+documentclass: article
+mainfont: "Times New Roman"
+graphics: true
+output:
+    bookdown::pdf_document2:
+        fig_caption: yes
+        number_sections: no
+        template: template.tex
+        latex_engine: xelatex
+        toc: no
+editor_options: 
+  chunk_output_type: console
+---
+\pagenumbering{gobble}
+
+```{r setup, include=FALSE, cache = FALSE}
+# load packages
+suppressPackageStartupMessages({
+  library(knitr)
+  library(bookdown)
+  library(tidyverse)
+  library(rstan)
+  library(hdrcde)
+  library(truncnorm)
+})
+
+# set directory
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+
+# set theme
+theme_set(theme_bw() %+replace% 
+            theme(panel.grid = element_blank(),
+                  strip.background = element_blank(),
+                  legend.margin = margin(0,0,0,0),
+                  strip.text = element_text(size=10),
+                  legend.text = element_text(size=10),
+                  axis.text=element_text(size=10, color="black"),
+                  axis.title.y=element_text(angle = 90 ,margin=margin(0,15,0,0)),
+                  axis.title.y.right=element_text(angle = -90 ,margin=margin(0,0,0,15)),
+                  axis.title.x=element_text(margin=margin(15,0,0,0))))
+```
+
+```{r setup2, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
+
+# specify models
+models <- c("model_full","model_rho","model_phi","model_fixed") 
+
+# observed data
+obs_data = read_csv("data/Myvatn_char_counts.csv") %>%
+  mutate(stage = factor(stage, levels = c("first","second","third","adult"), 
+                        labels=c("age 1","age 2","age 3","adult")))
+
+# data packaged for stan
+data_list = read_rdump("model/data_list.R")
+
+# model fits
+model_fits <- lapply(models, function(x){
+  read_csv(paste0("model/output/",x,"/fit_summary.csv")) %>%
+    mutate(stage = factor(stage, levels = 1:4, labels=c("age 1","age 2","age 3","adult")),
+           year = time + 1985,
+           model = x) 
+}) %>%
+  bind_rows() %>%
+  mutate(model = factor(model, levels = models))
+
+# fixed parameters for full model
+fixed_pars = read_csv("model/output/model_full/fixed_pars.csv")
+
+# posterior predictive pars
+post_pars <- c(crossing(stage = 1:3) %>%
+{paste0("acor_obs[",.$stage,"]")},
+crossing(stage = 1:3) %>%
+{paste0("acor_sim[",.$stage,"]")}) 
+
+# posterior predictive check data
+post_pred <- lapply(models, function(x){
+  set.seed(2e5)
+  read_csv(paste0("model/output/",x,"/post_pred_pars.csv"))  %>%
+    gather(var, val, -chain, -step) %>%
+    mutate(type = strsplit(var, "\\[|\\]|,") %>% map_chr(~.x[1]),
+           stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))) %>%
+    select(-var) %>%
+    spread(type, val) %>%
+    mutate(model = x,
+           chain_step = as.numeric(paste0(chain, step))) %>%
+  filter(chain_step %in% sample(chain_step, 1000))
+}) %>%
+  bind_rows() %>%
+  mutate(model = factor(model, levels = models[1:4]),
+         stage = factor(stage, levels = 1:3, labels=c("age 2","age 3","adult")))
+
+  
+# lambdas
+sensitivities <- lapply(models[1:3], function(x){
+  read_csv(paste0("analysis/demographic_output/",x,"/sensitivities.csv")) %>%
+    mutate(model = x)
+}) %>%
+  bind_rows() %>%
+  mutate(model = factor(model, levels = models[1:3]))
+
+# mean lambda and variance partitioning for full model
+dem_ref <- read_csv("analysis/demographic_output/model_full/dem_ref.csv")
+var_par <- read_csv("analysis/demographic_output/model_full/var_par.csv")
+
+# clean parameter estimates
+clean_pars <- fixed_pars %>%
+  select(-lp__) %>%
+  gather(name, val, sig_rho, sig_phi, sig_obs_sd)  %>%
+  mutate(name = factor(name, levels=c("sig_obs_sd","sig_rho","sig_phi")))
+
+# summarize paramater estimates
+pars_summary <- clean_pars %>%
+  group_by(name) %>%
+  summarize(lower16 = hdr(val, prob = 68)$hdr[1],
+            middle = hdr(val, prob = 68)$mode,
+            upper84 = hdr(val, prob = 68)$hdr[2])
+
+# define density function
+density_fun <- function(fit_sim_, scale_ = F) {
+  
+  # iterate over parameters
+  fit_sim_  %>%
+    split(.$name) %>%
+    lapply(function(x){
+      
+      # calcualte density
+      d = density(x = x$middle, from = 0.9*min(x$middle))
+      
+      # create data frame
+      df = tibble(name = x$name %>% unique(), val = d$x, dens = d$y)
+      
+      # scale so that max density equals 1
+      if (scale_ == T) {
+        df = df %>%
+          mutate(dens = dens/max(dens))
+      } 
+      
+      # return
+      return(df)
+    }) %>%
+    bind_rows()
+}
+```
+
+```{r fit-abundance, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=7, fig.width=3.5, fig.cap="Fit of the full model (black lines) to the surveyed abundance of Mývatn's Artic charr population (gray lines and points) on a log scale. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+model_fits %>%
+  filter(model == "model_full", name == "N", stage !=  "age 1") %>%
+  ggplot(aes(year, middle))+
+  facet_wrap(~stage, nrow = 3)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  geom_line(data=obs_data %>% filter(stage != "age 1"), 
+            aes(y=count), size = 0.4, alpha=0.7, na.rm=TRUE,
+            color = "gray50")+
+  geom_point(data=obs_data %>% filter(stage != "age 1"), 
+             aes(y=count), size = 1, alpha=0.7, na.rm=TRUE,
+            color = "gray50")+ 
+  scale_y_continuous("Survey abundance",trans="log",breaks=c(3,30,300))+  
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  theme(panel.spacing.y=unit(0.75, "lines"), 
+        strip.text = element_text(margin = margin(0,0,5,0)))
+
+```
+
+\clearpage
+
+```{r pars, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=6, fig.width=3.5, fig.cap="Prior and posterior densities for standard deviation of observation error ($\\sigma{}_{obs}$), recruitment ($\\sigma{}_{\\rho}$), and survival probability ($\\sigma{}_{\\phi}$) from the model fit the real data. The dashed vertical lines correspond to the posterior modes and the shaded regions correspond to the HDI${}_{68\\%}$, analagous to the coverage of standard errors. Probability densities are scaled to the same maximum value across panels for ease of visualization."}
+
+# posterior density
+post_dens <- density_fun(clean_pars %>%
+                          rename(middle = val)) %>%
+  mutate(type = "Posterior")
+
+# priors density 
+prior_n <- 1e6
+set.seed(1)
+bd <- 0.2
+priors_dens = tibble(sig_obs_sd = rtruncnorm(n=prior_n, a = 0, b = Inf, mean = 0, 
+                                        sd = data_list$n_obs[2:4,] %>% sd),
+                    sig_phi = rtruncnorm(n=prior_n, a = 0, b = Inf, mean = 0, sd = 2),
+                    sig_rho = rtruncnorm(n=prior_n, a = 0, b = Inf, mean = 0, sd = 2),
+                    step = 1:prior_n) %>%
+  gather(name, middle, sig_rho, sig_phi, sig_obs_sd)  %>%
+  mutate(name = factor(name, levels=c("sig_obs_sd","sig_rho","sig_phi"))) %>%
+  density_fun(., F) %>%
+  left_join(post_dens %>%
+              group_by(name) %>%
+              summarize(max = max(val),
+                        min = min(val))) %>%
+  group_by(name) %>%
+  filter(val >= min - bd*(max-min) & val <= max + bd*(max-min)) %>%
+  select(-max, -min) %>%
+  mutate(type = "Prior")
+
+# labels
+par_lab <- tibble(name = c("sig_obs_sd", "sig_rho", "sig_phi"),
+                   label = c("sigma[obs]", "sigma[rho]", "sigma[phi]")) %>%
+  mutate(name = factor(name, levels=c("sig_obs_sd","sig_rho","sig_phi"))) %>%
+  left_join(post_dens %>%
+              group_by(name) %>%
+              summarize(range = max(val) - min(val),
+                        min = min(val),
+                        dens = max(dens))) %>%
+  mutate(val = 0.9*range + min,
+         dens = 0.9*dens)
+
+# add y bounds to parameter summary
+par_summary_b <- pars_summary %>%
+                 left_join(post_dens %>%
+                             group_by(name) %>%
+                             summarize(y = 0, yend = max(dens)))
+
+# function for breaks
+my_breaks <- function(x){
+  range_x = max(x) - min(x)
+  mean_x = mean(x)
+  lo_x = mean_x - 0.33*range_x
+  hi_x = mean_x + 0.33*range_x
+  return(signif(c(lo_x, mean_x, hi_x),2))
+}
+
+# plot
+post_dens %>%
+  bind_rows(priors_dens) %>%
+  ggplot()+
+  facet_wrap(~name, nrow = 3, scales = "free")+
+  geom_line(aes(val, dens, size = type, color = type))+
+  scale_size_manual("", values=c(0.65, 0.5))+
+  scale_color_manual("", values=c("black","gray60"))+
+  geom_segment(data  = par_summary_b,
+               aes(x = middle, xend = middle, y = y, yend = yend),
+               size = 0.6, linetype = 2)+
+  geom_rect(data = par_summary_b,
+            aes(xmin = lower16, xmax = upper84, ymin = y, ymax = yend),
+            alpha = 0.2)+
+  geom_text(data = par_lab, aes(label = label, x = val, y = dens),
+            parse = T, size = 5, hjust = 0)+
+  scale_x_continuous("Estimate", breaks = my_breaks)+
+  scale_y_continuous("Probaiblity density", breaks = NULL)+
+  theme(strip.text = element_blank(),
+        legend.position = c(0.175, 0.925))
+```
+
+\clearpage
+
+```{r rho, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3, fig.width=4.5, fig.cap="Estimated per capita recruitment ($\\rho{}_{t}$; thick line) of Mývatn's Artic charr population, on a log scale. The shaded region corresponds to UI${}_{68\\%}$, analgous to the coverage of standard errors. The points and thin lines show the observed abundances of age 1 individuals, which were not used to fit the model (due to low detection probability) but nonetheless provide a useful comparison to estimated recruitment. Note that the recruitment estimates are per capita with respect to adults, while age 1 abundances are not."}
+
+model_fits %>%
+  filter(model == "model_full",name == "rho_scale") %>%
+  ggplot(aes(year, middle))+
+  geom_line(data=obs_data %>% filter(stage == "age 1"), 
+            aes(x = year, y=count/5), size = 0.4, alpha=0.7, na.rm=TRUE,
+            color = "gray50")+
+  geom_point(data=obs_data %>% filter(stage == "age 1"), 
+             aes(x = year, y=count/5), size = 1, alpha=0.7, na.rm=TRUE,
+            color = "gray50")+ 
+  geom_ribbon(aes(ymin = lower16, ymax=upper84), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  scale_y_continuous("Per capita recruitment", trans="log", breaks=c(1,4,16),
+                     sec.axis = 
+                       sec_axis(~.*5, name = "Observed abunace of age 1", breaks=c(5,20,80)))+
+  scale_x_continuous("Year")
+
+```
+
+\clearpage
+
+```{r phi, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=7, fig.width=3.5, fig.cap="Estimated age-specific survival probabilities ($\\phi{}_{t}^{i}$) of Mývatn's Artic charr population. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors. Note that the high estimated survival probabilities for age 2 individuals are likely a result of the biased detection of age 2 individuals relative to older age classes."}
+
+model_fits %>%
+  filter(model == "model_full", name == "phi") %>% 
+  group_by(stage) %>%
+  mutate(lower16 = lower16,
+         upper84 = upper84,
+         middle = middle) %>%
+  ggplot(aes(year, middle))+
+  facet_wrap(~stage, nrow = 3)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84), linetype=0, alpha = 0.2)+
+  geom_line(size = 0.7)+
+  scale_y_continuous("Survival probability", breaks = c(0,0.5,1))+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  theme(strip.text = element_text(margin = margin(0,0,5,0)))
+
+```
+
+\clearpage
+
+```{r model-comparison, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=6, fig.width=7, fig.cap="Comparison of the full and reduced models to the observed data. The observed data are shown as points and light gray lines. The full model is shown in each panel to facilitate comparison with each reduced model. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+model_fits %>%
+  filter(name == "N", stage != "age 1", model != "model_full") %>%
+  mutate(model_2 = factor(model, exclude = "model_full")) %>% 
+  {bind_rows(.,
+    expand(model_fits %>% filter(name == "N",stage != "age 1",model == "model_full"),
+           nesting(name, stage, time, middle, lower16, upper84, year, model),
+           model_2 = unique(.$model_2)))} %>%
+  mutate(model = factor(model,
+                        levels = c("model_full","model_rho","model_phi","model_fixed") ,
+                        labels = c("Full Model","Variable\nRecruitment",
+                                   "Variable\nSurvival","Both Fixed"))) %>%
+  ggplot(aes(year, middle))+
+  facet_grid(model_2~stage)+
+  geom_line(data=obs_data %>%
+              filter(stage != "age 1"), aes(y=count), size = 0.5, alpha=0.5, na.rm=TRUE,
+            color = "gray50")+
+  geom_point(data=obs_data%>%
+               filter(stage != "age 1"), aes(y=count), size = 0.8, alpha=0.5, na.rm=TRUE,
+            color = "gray50")+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = model), linetype=0, alpha = 0.2)+
+  geom_line(aes(color = model), size = 0.7)+
+  scale_y_continuous("Survey abundance",trans="log",breaks=c(3,30,300))+  
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_color_manual("",values=c("black","firebrick2","dodgerblue2","magenta4"))+
+  scale_fill_manual("",values=c("gray20","firebrick2","dodgerblue2","magenta4"))+
+  theme(panel.spacing.y=unit(0.75, "lines"), 
+        strip.text = element_text(margin = margin(0,0,5,0)),
+        strip.text.y = element_blank()) +
+  guides(color = guide_legend(keyheight = 2),
+         fill = guide_legend(keyheight = 1))
+```
+
+\clearpage
+
+```{r post-pred, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=6, fig.width=7, fig.cap="Posterior predictive checks comparing residual temporal autocorrelations calculated from both observed and simulated data for each model. The residual autocorrelations for the simulated data have an idealized posterior distributions centered on zero. Deviations between the observed and simulated distributions indicate systematic patterns in the data not fully characterized by a given model."}
+
+post_pred_long <- post_pred %>%
+  gather(var, val, acor_obs, acor_sim) %>%
+  mutate(model = factor(model,
+                        levels = c("model_full","model_rho","model_phi","model_fixed") ,
+                        labels = c("Full Model","Variable\nRecruitment",
+                                   "Variable\nSurvival","Both Fixed")),
+         var = factor(var, levels = c("acor_obs","acor_sim"), labels = c("Observed","Simulated")))
+
+post_pred_dens <- post_pred_long %>%
+  mutate(split_name = paste(stage,model,var)) %>%
+  split(.$split_name) %>%
+  lapply(function(x){
+    
+    # calculate density
+    d <- density(x = x$val)
+    
+    # create data frame
+    df <- tibble(stage = x$stage %>% unique(), 
+                 model = x$model %>% unique(),
+                 var = x$var %>% unique(),
+                 val = d$x, 
+                 dens = d$y)
+      
+      # return
+      return(df)
+    }) %>%
+  bind_rows()
+
+
+post_pred_dens %>%
+  ggplot(aes(val, dens,color = model, fill = model, linetype = var))+
+  facet_grid(model~stage)+
+  geom_vline(xintercept = 0, color = "gray70", size = 0.4)+
+  geom_line(size = 0.8)+
+  geom_ribbon(aes(ymin = 0, ymax = dens, group = var), alpha = 0.2, linetype = 0)+
+  scale_color_manual("",values=c("black","firebrick2","dodgerblue2","magenta4"), guide = F)+
+  scale_fill_manual("",values=c("black","firebrick2","dodgerblue2","magenta4"), guide = F)+
+  scale_linetype_discrete("")+
+  scale_y_continuous("Posterior density")+
+  scale_x_continuous("Residual Autocorrelation",limits=c(-0.9,0.9), breaks = c(-0.6,0,0.6))
+
+```
+
+\clearpage
+
+```{r lamba-models, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3, fig.width=5, fig.cap="Asymptotic per capita growth rates ($\\lambda{}_{t}^{asym}$) for the full model and the two reduced models that included at least one time-varying demographic parameter, on a log scale. The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors. Per capita growth rates of 1 (horizontal dashed line) indicate no change in population size (asymptotically), with values above or below 1 indicating population increase or decrease, respectively."}
+
+sensitivities %>%
+  filter(name == "lambda") %>%
+  mutate(model = factor(model,
+                        levels = c("model_full","model_rho","model_phi") ,
+                        labels = c("Full Model","Variable\nRecruitment","Variable\nSurvival"))) %>%
+  ggplot(aes(year, middle, color = model))+
+  geom_hline(yintercept = 1, size = 0.3, linetype = 2)+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = model), linetype=0, alpha = 0.075)+
+  geom_line(size = 1)+
+  scale_color_manual("",values=c("black","firebrick2","dodgerblue2"))+
+  scale_fill_manual("",values=c("black","firebrick2","dodgerblue2"))+
+  scale_y_continuous("Per capita population\ngrowth rate", trans="log",
+                     breaks=c(0.7,1,1.4), limits = c(0.6,1.6))+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  guides(color = guide_legend(keyheight = 2))
+
+```
+
+\clearpage
+
+```{r part, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3, fig.width=3.5, fig.cap="Partitioning of variance in the asymptotic per capita growth rate ($\\lambda{}_{t}^{asym}$) into contributions from time-varying recruitment ($\\rho{}_{t}$) and survival ($\\phi{}_{t}^{i}$). The error bars correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors. The survival probability of age 1 fish does not contribute to variance in the per capita growth rate because it is fixed through time."}
+
+labels = c("rho[t]","phi[t]^2","phi[t]^3","phi[t]^4")
+
+var_par %>% 
+  filter(name!="s21") %>%
+  ggplot(aes(name, middle))+
+  geom_hline(yintercept=0, alpha=0.3, linetype=2)+
+  geom_point(size=3)+
+  geom_errorbar(aes(ymin=lower16, ymax=upper84), width=0.1, size=0.5)+
+  scale_y_continuous("Contribution to variance in\npopulation growth rate")+
+  scale_x_discrete("Demographic rate",
+                   labels = parse(text = labels))
+```
+
+\clearpage
+
+```{r elast, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE, fig.align='center', fig.height=3, fig.width=5, fig.cap="Elasticity of the asymptotic growth rate from the full model through time with respect to subadult and adult demographic rates. The subadult demographic rates (recruitment and survival of age classes 1, 2, and 3) are summed together because they are identical, as is often the case of age-structured models. The elasticities sum to 1 and quantify the potential contributions of different demographic rates to changes in the asymptotic growth rate; this means that the subadult and adult elasticities are mirror images of each other.  The shaded regions correspond to UI${}_{68\\%}$, analagous to the coverage of standard errors."}
+
+sensitivities %>%
+  filter(model == "model_full", str_detect(name, "e_")) %>%
+  mutate(stage = factor(ifelse(name == "e_s44","adult","subadult"),
+                        levels = c("subadult","adult"))) %>%
+  group_by(stage, year) %>%
+  summarize(middle = sum(middle),
+            lower16 = sum(lower16),
+            upper84 = sum(upper84)) %>%
+  ggplot(aes(year, middle, color = stage))+
+  geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = stage), linetype=0, alpha = 0.075)+
+  geom_line(size = 1)+
+  scale_color_manual("",values=c("black","darkorange"))+
+  scale_fill_manual("",values=c("black","darkorange"))+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_y_continuous("Elasticity of asymptotic\ngrowth rate")+
+  guides(color = guide_legend(keyheight = 2))
+```
+
