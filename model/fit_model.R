@@ -5,7 +5,6 @@
 # load packages
 library(tidyverse)
 library(rstan)
-source("model/stan_utility.R")
 
 # stan settings
 rstan_options(auto_write = TRUE)
@@ -60,13 +59,6 @@ fit <- stan(file = model_path, data = data, seed=1, chains = chains, iter = iter
 fit_summary <- summary(fit, probs=c(0.16, 0.5, 0.84))$summary %>% 
 {as_tibble(.) %>%
     mutate(var = rownames(summary(fit)$summary))}
-
-# additional diagnostics
-check_rhat(fit)
-check_n_eff(fit)
-check_div(fit)
-check_treedepth(fit,max_treedepth)
-check_energy(fit)
 
 # check Rhat & n_eff
 fit_summary %>% filter(Rhat > 1.01) %>% select(Rhat, n_eff, var) %>% arrange(-Rhat)
