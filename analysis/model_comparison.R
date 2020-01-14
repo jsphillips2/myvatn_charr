@@ -70,7 +70,7 @@ log_liks <- lapply(models, function(x){
       mutate(var = rownames(summary(fit)$summary))}
   
   log_liks <- tibble(model = x,
-                     mean_log_lik = {fit_summary %>%
+                     median_log_lik = {fit_summary %>%
                          filter(var=="log_lik_sum")}$`50%`
                      )
   return(log_liks)
