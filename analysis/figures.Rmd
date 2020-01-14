@@ -14,7 +14,6 @@ output:
 editor_options: 
   chunk_output_type: console
 ---
-\pagenumbering{gobble}
 
 ```{r setup, include=FALSE, cache = FALSE}
 # load packages
@@ -365,8 +364,9 @@ post_pred_dens %>%
   scale_color_manual("",values=c("black","firebrick2","dodgerblue2","magenta4"), guide = F)+
   scale_fill_manual("",values=c("black","firebrick2","dodgerblue2","magenta4"), guide = F)+
   scale_linetype_discrete("")+
-  scale_y_continuous("Posterior density")+
-  scale_x_continuous("Residual Autocorrelation",limits=c(-0.9,0.9), breaks = c(-0.6,0,0.6))
+  scale_y_continuous("Posterior density", breaks = c(2,6,10), limits = c(0,12))+
+  scale_x_continuous("Residual Autocorrelation",limits=c(-0.9,0.9), breaks = c(-0.6,0,0.6))+
+  guides(linetype = guide_legend(keywidth = 1.5))
 
 ```
 
@@ -424,10 +424,10 @@ sensitivities %>%
   ggplot(aes(year, middle, color = stage))+
   geom_ribbon(aes(ymin = lower16, ymax=upper84, fill = stage), linetype=0, alpha = 0.075)+
   geom_line(size = 1)+
-  scale_color_manual("",values=c("black","darkorange"))+
-  scale_fill_manual("",values=c("black","darkorange"))+
+  scale_color_manual("",values=c("black","brown"))+
+  scale_fill_manual("",values=c("black","brown"))+
   scale_x_continuous("Year", limits=c(1986,2017))+
-  scale_y_continuous("Elasticity of asymptotic\ngrowth rate")+
+  scale_y_continuous("Elasticity of asymptotic\ngrowth rate", limits = c(0,1), breaks = c(0.2,0.5,0.8))+
   guides(color = guide_legend(keyheight = 2))
 ```
 
