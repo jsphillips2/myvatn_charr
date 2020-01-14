@@ -58,6 +58,12 @@ theme_set(theme_bw() %+replace%
 
 # Preliminary data exploration
 
+The surveys of Mývatn's Arctic charr population from 1986-2017 were conducted using gill nets at 12 locations spanning the north and south basins of the lake. Figure \ref{fig:sites}) shows that major changes in abundance are synchronized across sites, justifying the treatment of the data as representing the dynamics of a single well-mixed population. 
+
+Figure \ref{fig:cohorts}) shows that the vast majority of surveyed individuals were less than 6 years old. Due to the sparse of data for old individuals and the fact that Mývatn's charr reach sexual maturity at around age 4, we group all individuals age 4 and older into a single "adult" age class. The number of surveyed individuals in each cohort increased generally from age 1 to 2 and occasionally increased from age 2 to 3. In a population closed to immigration, the number of individuals in the cohort must decrease with cohort age, which indicates systematic detection bias against age 1 and (to a lesser extent) age 2 individuals.
+
+\clearpage
+
 ```{r setup2, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
 
 # raw data
@@ -130,6 +136,12 @@ cohorts %>%
 \clearpage
 
 # Systematic detection bias 
+
+The surveys suffered from systematic detection bias against age 1 and 2 individuals, as made clear by the examination of cohort abundance across cohort age (Figure \ref{fig:cohorts})). We handled this systematic detection bias in two ways. Because the data for age 1 individuals were so sparse and "noisy" relative to other age classes, we omitted those data from model fitting (see details in main text). For age 2 individuals, we explored the potential consequence of the detection bias for the inference of temporal patterns by fitting the model with the assumption of a systematic bias of 0.5 relative to the other stages. This is equivalent of multiplying the number surveyed individuals in age class 2 by 2 before fitting the model.
+
+Figures \ref{fig:bias-abundance}-\ref{fig:bias-var} compare the results of the model fit either with or without the systematic detection bias against age 2 individuals. The inferred abundances (Figure \ref{fig:bias-abundance}) and survival probabilities (Figure \ref{fig:bias-phi}) of age classes 3 and 4 are nearly identical with and without the assumed bias, suggesting that those aspects of the model fit are insensitive to the bias detection of age 2 individuals. When assuming  a detection bias, the average per capita recruitment (Figure \ref{fig:bias-rho}) was higher and the average survival probability of age 2 was lower (Figure \ref{fig:bias-phi}), which is a direct consequence of assuming relatively greater abundance of age 2 individuals. The only demographic rate for which assuming a detection bias altered the temporal pattern was for the survival probability of age 2 individuals. This is because the survival probability estimated in the absence of imposing the bias bumps against the upper bound of 1, and therefore is limited in its variability. The asymptotic growth rate was nearly identical with and without the imposed bias against age 2 individuals (Figure \ref{fig:bias-lam}), while the variance (Figure \ref{fig:bias-var}) partitioning was largely the same except for a somewhat greater contribution of the survival probability of age class 2 due to its greater variability. 
+
+\clearpage
 
 ```{r setup3, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
 
@@ -258,6 +270,10 @@ bias_var %>%
 
 # Reduced models
 
+To assess the contribution of temporal variation in the demographic rates to the fit of the model, we fit reduced versions of the model including only time-varying recruitment (“Variable Recruitment"), only time-varying survival (“Variable Survival"), or with both fixed through time (“Both Fixed”). Visual and statistical comparison of the full and reduced models is shown in the main text (Figures 5 and 6; Table I). Figures \ref{fig:reduced-rho} and \ref{fig:reduced-phi} compare the parameter estimates between the full model and corresponding reduced model allowing temporal variation in that rate. The inferred temporal variation in recruitment when survival was fixed ("Variable Recruitment"; Figure \ref{fig:reduced-rho}) was largely similar to that of the full model, with exception of the large decline in recruitment detected in the full model that was missed in the reduced model. The temporal patterns in inferred survival probabilities were similar for the full and "Variable Survival" models (Figure \ref{fig:reduced-phi}), although the average values different somewhat depending on age class. Furthermore, the uncertainty in the estimated survival probability of adults was substantially greater for "Variable Survival" than for the full model.
+
+\clearpage
+
 ```{r setup4, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
 
 # specify models
@@ -321,6 +337,10 @@ model_fits %>%
 \clearpage
 
 # Demographic analysis
+
+Figure \ref{fig:real-asymp}) compares the realized and asymptotic per capita population growth rate, as described in the main text. The realized growth rate changes through time due to both changes in demographic rates and population age structure, while the asymptotic growth rate changes due to changes in the demographic rates assuming an equilibrium age structure given the demographic rates at a particular point in time. The realized growth rate is "retrospective", in the sense that it characterizes the changes that the population actually experienced. In contrast, the asymptotic growth rate is "prospective", in the sense that characterizes what the growth rate would be if the dynamics were projected from the demographic rates at a given point in time.
+
+\clearpage
 
 ```{r setup5, echo = FALSE, message = FALSE, warnings = FALSE, cache = FALSE}
 
