@@ -53,7 +53,7 @@ dd = data %>%
   #Repalce NA's with 1's
   #This only affects data for 1st year fish, which aren't used in the model
   mutate(
-    count = ifelse(is.na(count)==T, 1L, count) 
+    count = ifelse(is.na(count)==T, 0L, count) 
   ) %>%
   ungroup()
 
@@ -85,7 +85,8 @@ nYears = ncol(n_obs)
 nStages = nrow(n_obs)
 
 # export
-# stan_rdump(c("nYears", "nStages", "N_obs", "n_obs"), file = "model/data_list.R")
+# stan_rdump(c("nYears", "nStages", "N_obs", "n_obs"), 
+#            file = "demographic_model/data_list.R")
 # write_csv(dd, "data/myvatn_char_counts.csv")
 
 

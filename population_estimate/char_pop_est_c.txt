@@ -1,0 +1,34 @@
+### Model 
+
+model {
+
+  #hyperparameters
+  lambda_h ~ dgamma(lp[1, 1], lp[1, 2])
+  phi_h ~ dbeta(pp[1, 1], pp[1, 2])
+  
+  # mean abundance
+  for (i in 1:l) {
+    lambda[i] ~ dgamma(lp[2, 1], lp[2, 1] / lambda_h)
+  } # i
+  
+  # overdispersion
+  r ~ dgamma(rl[1, 1], rl[1, 2])
+  
+  # detection probability
+  for (i in 1:p) {
+    phi[i] ~ dbeta(pp[2, 1], pp[2, 1] / phi_h - pp[2, 1])
+  } # i
+
+  # abundance
+  for (i in 1:n) {
+    nu_l[i] ~ dgamma(r, r / lambda[lambda_nu[i]])
+    nu[i] ~ dpois(nu_l[i])
+  } # i
+  
+  # detection
+  for (i in 1:length(y)) {
+    y[i] ~ dbinom(phi[phi_y[i]], nu[nu_y[i]])
+  } # i
+
+
+}
