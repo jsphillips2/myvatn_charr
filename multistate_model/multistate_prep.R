@@ -91,7 +91,7 @@ data_trim %>%
                         midpoint = 2000)
 
 # mass quantiles (assume minimum catch mass of 35)
-nsize = 4
+nsize = 3
 bins <- seq(0, 1, length.out = nsize + 1)
 mqq <- {data_trim %>% filter(mass > 35)}$mass %>% quantile(probs = bins)
 mq <- c(min(data_trim$mass), mqq)  
@@ -100,7 +100,7 @@ mp <- (mq %>% diff())/2 + mq[1:(nsize + 1)] %>% round(1)
 # plot
 data_trim %>%
   filter(mass > 6) %>%
-  ggplot(aes(mass, fill = age_class))+
+  ggplot(aes(mass, fill = age_group))+
   geom_histogram(position = "identity",alpha = 0.5, binwidth = 0.1)+
   geom_vline(data = tibble(x = mq[2:(nsize+1)]), aes(xintercept = x))+
   scale_color_manual(values = c("gray50","goldenrod", "firebrick","skyblue2"))+
@@ -110,7 +110,7 @@ data_trim %>%
 # count data by age x mass
 counts <- data_trim %>%
   mutate(mass_class = cut(data_trim$mass, as.numeric(mq)) %>% as.numeric(),
-         age_class = cut(est_age, c(0,1,2,3,4,max(est_age))) %>% as.numeric()) %>%
+         age_class = cut(est_age, c(0,1,2,3,max(est_age))) %>% as.numeric()) %>%
   select(year, age_class, mass_class, mass) %>%
   na.omit() %>%
   group_by(year, age_class, mass_class) %>%
@@ -141,8 +141,8 @@ counts_expand %>%
 
 
 ### General set up
-masses <- 5 # number of mass classes
-ages <- 5 # number  of age classes
+masses <- 4 # number of mass classes
+ages <- 4 # number  of age classes
 times <- counts_expand$year %>% unique() %>% length() # number of time steps
 q <- mp/mean(mp) # mass covariate (scale by mean)
 fa <- 4 # minimum reproductive age
@@ -164,13 +164,18 @@ yo <- {counts_expand %>%
 
 
 # Priors
-p <- matrix(c(1.5,     1.5,      # b0
-              1.5,     1.5,      # b1
-              1.5,     1.5,      # u
-              1.5,     1.5,      # f
-              1.5,     0.1       # ys
-), nrow = 5, ncol = 2, byrow = T)
+p <- matrix(c(1.5,     1.5/0.5,      # b0s
+              1.5,     1.5/0.5,      # b1s
+              1.5,     1.5/0.5,      # us
+              1.5,     1.5/0.5,      # b0
+              1.5,     1.5/0.5,      # b1
+              1.5,     1.5/0.5,      # u
+              1.5,     1.5/0.5,      # f
+              1.5,     1.5/10     # ys
+), nrow = 8, ncol = 2, byrow = T)
 
+# weigting for penalization
+ws <- 4
 
 
 #### Matrices
@@ -182,18 +187,16 @@ block_fn <- function(v_, r_, c_) {
                    })))
 }
 
-D <- block_fn(v_ = c(0, 0, 0, 0, 0,
-                     1, 0, 0, 0, 0,
-                     0, 1, 0, 0, 0,
-                     0, 0, 1, 0, 0,
-                     0, 0, 0, 1, 1),
+D <- block_fn(v_ = c(0, 0, 0, 0,
+                     1, 0, 0, 0,
+                     0, 1, 0, 0,
+                     0, 0, 1, 1),
                     c_ = masses, r_ = ages)
 
-H <- block_fn(v_ = c(1, 1, 1, 1, 1,
-                     0, 0, 0, 0, 0,
-                     0, 0, 0, 0, 0,
-                     0, 0, 0, 0, 0,
-                     0, 0, 0, 0, 0),
+H <- block_fn(v_ = c(1, 1, 1, 1,
+                     0, 0, 0, 0,
+                     0, 0, 0, 0,
+                     0, 0, 0, 0),
                     c_ = masses, r_ = ages)
 
 
@@ -222,7 +225,8 @@ data_list <- list(times = times,
                   H = H,
                   y = y,
                   yo = yo,
-                  p = p)
+                  p = p,
+                  ws = ws)
 
 
 
@@ -233,11 +237,25 @@ data_list <- list(times = times,
 #==========
 
 # models
-models <- c("size_age_model_fixed")
+models <- c("size_age_model")
 model <- models[1]
 
 # model
 model_path <- paste0("multistate_model/",model,".stan")
+
+# init_fn <- function() {
+#   list(b0s = runif(1, 0.5 * p[1, 1]/p[1, 2], 1.5 * p[1, 1]/p[1, 2]),
+#        b1s = runif(1, 0.5 * p[2, 1]/p[2, 2], 1.5 * p[2, 1]/p[2, 2]),
+#        us = runif(1, 0.5 * p[3, 1]/p[3, 2], 1.5 * p[3, 1]/p[3, 2]),
+#        b0 = runif(1, 0.5 * p[4, 1]/p[4, 2], 1.5 * p[4, 1]/p[4, 2]),
+#        b1 = runif(1, 0.5 * p[5, 1]/p[5, 2], 1.5 * p[5, 1]/p[5, 2]),
+#        u = matrix(runif((masses - 1) * (times - 1),
+#                          0.5 * p[6, 1]/p[6, 2], 1.5 * p[6, 1]/p[6, 2]),
+#                    nrow = masses - 1, ncol = times - 1),
+#        f = runif(1, 0.5 * p[7, 1]/p[7, 2], 1.5 * p[7, 1]/p[7, 2]),
+#        ys = runif(1, 0.5 * p[8, 1]/p[8, 2], 1.5 * p[8, 1]/p[8, 2]),
+#        x0  = runif(ages * masses, 0.5 * mean(y), 1.5 * mean(y)))
+# }
 
 
 # MCMC specifications (for testing)
@@ -248,7 +266,7 @@ model_path <- paste0("multistate_model/",model,".stan")
 
 # MCMC specifications
 # chains <- 4
-# iter <- 300
+# iter <- 500
 # adapt_delta <- 0.9
 # max_treedepth <- 10
 
@@ -259,6 +277,7 @@ model_path <- paste0("multistate_model/",model,".stan")
 
 # saveRDS(fit, paste0("multistate_model/",model,"_fit.RDS"))
 
+# fit <- readRDS("multistate_model/size_age_model_fixed_fit.RDS")
 fit_summary <- rstan::summary(fit, probs=c(0.16, 0.5, 0.84))$summary %>%
 {as_tibble(.) %>%
     mutate(var = rownames(rstan::summary(fit)$summary))}
@@ -290,6 +309,20 @@ x %>%
 
 
 
+x %>%
+  ggplot(aes(year, mi, color = factor(age_class), linetype = factor(mass_class)))+
+  facet_wrap(~age_class, scales = "free_y")+
+  geom_line()+
+  geom_ribbon(aes(ymin = lo, ymax = hi, 
+                  fill = factor(age_class), 
+                  group = factor(mass_class)),
+              linetype = 0, alpha = 0.2)+
+  geom_point(data = counts_expand, aes(y = count))+
+  scale_color_manual(values = c("gray50","goldenrod", "firebrick","skyblue2","black"))+
+  scale_fill_manual(values = c("gray50","goldenrod", "firebrick","skyblue2","black"))
+
+
+
 AA <- fit_summary %>%
   select(var, `16%`, `50%`, `84%`) %>%
   rename(lo = `16%`, mi = `50%`, hi = `84%`) %>%
@@ -316,7 +349,7 @@ AA <- fit_summary %>%
 
 
 AA %>%
-  filter(donor_age == 5) %>%
+  filter(donor_age == 4) %>%
   ggplot(aes(year, mi, 
              color = factor(recipient_age), 
              linetype = factor(recipient_mass),
@@ -336,3 +369,53 @@ x %>%
   ggplot(aes(age_class, count, group = cohort, color = year))+
   geom_line()+ 
   geom_point()
+
+
+
+x %>%
+  group_by(year, age_class) %>%
+  summarize(count = sum(mi)) %>%
+  ungroup() %>%
+  ggplot(aes(year, count, color = factor(age_class)))+
+  geom_point(data = counts_expand %>%
+               group_by(year, age_class) %>%
+               summarize(count = sum(count)))+
+  geom_line(data = counts_expand %>%
+               group_by(year, age_class) %>%
+               summarize(count = sum(count)),
+            size = 0.2)+
+  geom_line(size = 1)+ 
+  scale_color_manual(values = c("gray50","goldenrod", "firebrick","skyblue2","black"))
+
+
+fit_summary %>% 
+  filter(var == "f")
+
+u <- fit_summary %>%
+  select(var, `16%`, `50%`, `84%`) %>%
+  rename(lo = `16%`, mi = `50%`, hi = `84%`) %>%
+  filter(str_detect(fit_summary$var, "u"),
+         !(str_detect(fit_summary$var, "us"))) %>%
+  mutate(name = str_split(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
+         id = str_split(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = str_split(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))) %>%
+  left_join(counts_expand %>%
+              select(mass_class) %>%
+              unique() %>%
+              mutate(id = row_number())) %>%
+  left_join(tibble(year = counts_expand$year %>% unique(),
+                   time = 1:times)) %>%
+  na.omit()
+
+
+u %>%
+  ggplot(aes(year, mi, color = factor(mass_class)))+
+  geom_line()+
+  geom_ribbon(aes(ymin = lo, ymax = hi,
+                  fill = factor(mass_class)),
+              linetype = 0, alpha = 0.2)+
+  scale_color_manual(values = c("gray50","goldenrod", "firebrick","skyblue2","black"))+
+  scale_fill_manual(values = c("gray50","goldenrod", "firebrick","skyblue2","black"))
+
+
+bayesplot::mcmc_trace(x = fit, pars = "b1")

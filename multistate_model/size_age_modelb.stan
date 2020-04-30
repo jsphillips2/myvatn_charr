@@ -16,7 +16,7 @@ functions {
   vector growth(real b0_, real b1_, vector q_) {
     
     // Return growth rate as negative exponential of mass
-    return exp(b0_ - b1_ * q_);
+    return b0_ * exp(-b1_ * q_);
   }
   
   
@@ -30,7 +30,7 @@ functions {
     
     // Loop over columns; fill subdiagonal
     for (i in 1:(s_ - 1)) {
-      m_[i + 1, i] = b_[i];
+      m_[i + 1, i] = 1 - exp(-b_[i]);
     } // i
     
     // Return
@@ -43,7 +43,7 @@ functions {
   matrix mort_trans(vector u_) {
     
     // Fill mortalities on diagonal
-    return diag_matrix(u_);
+    return diag_matrix(exp(-u_));
   }
   
 
@@ -95,42 +95,43 @@ functions {
   
   
   
-  // Convert transition rate matrix to transition probability matrix
-  matrix trans_prob(matrix m0_) {
+  // Calculate marginal stage transition probabilies
+  matrix marginal(
+    
+    // Declare arugments
+    matrix m // matrix of conditional transition probabilies
+    ) {
     
     // Declare variables
-    int k_ = cols(m0_);
-    vector [k_] v_;
-    matrix [k_, k_] m1_;
-    matrix [k_, k_] m2_;
-    matrix [k_, k_] m3_;
-    matrix [k_, k_] m4_;
+    int r = rows(m);
+    matrix [r, r] m_diag;
+    matrix [r, r] m_off;
+    matrix [r, r] m_trans;
+    matrix [r, r] m_not_trans;
+    matrix [rows(m), cols(m)] ones;
     
-    // Original transition matrix
-    m1_ = m0_; 
+    // Matrix of ones
+    ones = rep_matrix(1, rows(m), cols(m));
+
+    // Diagonal matrix
+    m_diag = diag_matrix(diagonal(m));
     
-    // Replace diagonal elements of transition rate matrix with 0s
-    for (i in 1:k_) {
-      m1_[i, i] = 0; 
-    }
+    // Off-diagonal matrix
+    m_off = m - m_diag;
     
-    // Sum rates for each starting state
-    for (i in 1:k_) {
-      v_[i] = sum(m0_[,i]); 
-    } 
+    // Probability of transition
+    // multiply off diagonals by diagonal for each column
+    m_trans = m_off .* rep_matrix(diagonal(m_diag), r)';
     
-    // Diagonal matrix with summed rates
-    m2_ = diag_matrix(v_); 
+    // Probability of not transition 
+    // multiply diagonal by 1 - sum(off diagonal) for each column
+    m_not_trans = m_diag .* (diag_matrix(rep_vector(1, r) - m_off' * rep_vector(1, r)));
     
-    // Fill diagonal of transition rate matrix with negative summed rates
-    m3_ = m1_ - m2_; 
+    // Return probability of transition + not transition
+    return m_not_trans + m_trans;
     
-    // Exponentiate transition matrix (solution to transition probability ODE)
-    m4_ = matrix_exp(m3_); 
-    
-    // Return
-    return m4_;
   }
+
   
 }
 
@@ -149,7 +150,7 @@ data {
   matrix [ages * masses, ages * masses] K; // vec-permutation matrix
   matrix [ages * masses, ages * masses] D; // age-transition matrix
   matrix [ages * masses, ages * masses] H; // age-fertility matrix
-  int y [ages * masses, times]; // observed abundance
+  int  y [ages * masses, times]; // observed abundance
   int yo [ages * masses]; // index of observation status
   real p [8, 2]; // priors
   real ws; // weighting for penalization
@@ -181,12 +182,11 @@ parameters {
   // vector <lower=0> [times] b1; // decline in growth rate with mass
   real <lower=0> b0; // baseline growth rate
   real <lower=0> b1; // decline in growth rate with mass
-  vector <lower=0> [masses] u; // mass-specific mortality rate
+  matrix <lower=0> [masses, times - 1] u; // mass-specific mortality rate
   real <lower=0> b0s; // random walk standard deviation for b0
   real <lower=0> b1s; // random walk standard deviation for b1
   real <lower=0> us; // random walk standard deviation for u
-  real <lower=0> fs; // random walk standard deviation for f
-  vector <lower=0> [times - 1] f; // mass-specific fertility
+  real <lower=0> f; // mass-specific fertility
   // real <lower=0> ys; // observation error sd
   vector <lower=0> [ages * masses] x0; // initial abundance 
   
@@ -199,8 +199,8 @@ parameters {
 transformed parameters {
   
   // Declare variables
-  matrix <lower = 0> [ages * masses, times] x; // abundance
-  real <lower = 0> AA [ages * masses, ages * masses, times - 1]; // projection matrix array
+  matrix <lower=0> [ages * masses, times] x; // abundance
+  real <lower=0> AA [ages * masses, ages * masses, times - 1]; // projection matrix array
   
 
   // Initial abundance
@@ -220,14 +220,14 @@ transformed parameters {
     for (t in 2:times) {
   
       // Mass-specific ransition matrix (common across all ages)
-      M = trans_prob(growth_trans(growth(b0, b1, q)) + 
-                                    mort_trans(u));
+      M = marginal(growth_trans(growth(b0, b1, q)) + 
+                                    mort_trans(u[, t - 1]));
   
       // Expand transition matrix by age
       MM = trans_expand(M, ages);
   
       // Expand fertility matrix by age
-      FF = fert_expand(masses, ages, f[t - 1], fa, q);
+      FF = fert_expand(masses, ages, f, fa, q);
       
       // Vec-permutation
       Mp = Kt * D * K * MM;
@@ -255,16 +255,12 @@ model {
   // Random walk standard deviations
   // b0s ~ gamma(p[1, 1], p[1, 2]);
   // b1s ~ gamma(p[2, 1], p[2, 2]);
-  fs ~ gamma(p[2, 1], p[2, 2]);
-  // us ~ gamma(p[3, 1], p[3, 2]);
+  us ~ gamma(p[3, 1], p[3, 2]);
   
   // Initial values for random walks
   b0 ~ gamma(p[4, 1], p[4, 2]);
   b1 ~ gamma(p[5, 1], p[5, 2]);
-  u ~ gamma(p[6, 1], p[6, 2]);
-  
-  // Mass-specific fertility
-  f[1] ~ gamma(p[7, 1], p[7, 2]);
+  u[, 1] ~ gamma(p[6, 1], p[6, 2]);
   
   // Random walks
   for (t in 2:(times - 1)) {
@@ -272,13 +268,15 @@ model {
     // Growth rates
     // b0[t] ~ normal(b0[t - 1], b0s) T[0, ];
     // b1[t] ~ normal(b1[t - 1], b0s) T[0, ];
-     f[t] ~ normal(f[t - 1], fs) T[0, ];
     
     // Mortality 
-    // for (i in 1:(masses - 1)) {
-    //   u[i, t] ~ normal(u[i, t - 1], us) T[0, ];
-    // } // i
+    for (i in 1:masses) {
+      u[i, t] ~ normal(u[i, t - 1], us) T[0, ];
+    } // i
   } // t
+  
+  // Mass-specific fertility
+  f ~ gamma(p[7, 1], p[7, 2]);
   
   // Observation error sd
   // ys ~ gamma(p[8, 1], p[8, 2]);
@@ -293,16 +291,16 @@ model {
       x0[i] ~ gamma(p[8, 1], p[8, 2]);
     }
   }
-
-  // {
-  //   real w;
-  //   real s;
-  //   for (i in 1:(masses - 1)) {
-  //     w = mean(u[i, ]);
-  //     s = ws * us;
-  //     target += normal_lpdf(u[i, ] | w, s) - 1/(s * sqrt(2 * pi()));
-  //   } // i
-  // }
+  
+  {
+    real w;
+    real s;
+    for (i in 1:masses) {
+      w = mean(u[i, ]);
+      s = ws * us;
+      target += normal_lpdf(u[i, ] | w, s) - 1/(s * sqrt(2 * pi()));
+    } // i
+  }
   
 }
 
