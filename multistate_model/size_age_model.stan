@@ -16,12 +16,13 @@ functions {
   matrix growth_trans(vector g_) {
     
     // Declare variables
-    int s_ = num_elements(g_) + 1;
+    int s_ = num_elements(g_) + 2;
     matrix [s_, s_] m_ = rep_matrix(0, s_, s_);
+    vector [num_elements(g_) + 1] gg_ = append_row(g_[1], g_);
     
     // Loop over columns; fill subdiagonal
     for (i in 1:(s_ - 1)) {
-      m_[i + 1, i] = g_[i];
+      m_[i + 1, i] = gg_[1];
     } // i
     
     // Return
@@ -34,7 +35,7 @@ functions {
   matrix mort_trans(vector u_) {
     
     // Fill mortalities on diagonal
-    return diag_matrix(u_);
+    return diag_matrix(append_row(u_[1], u_));
   }
   
 
@@ -140,9 +141,9 @@ data {
   matrix [ages * masses, ages * masses] K; // vec-permutation matrix
   matrix [ages * masses, ages * masses] D; // age-transition matrix
   matrix [ages * masses, ages * masses] H; // age-fertility matrix
-  matrix [ages * masses, times] y; // observed abundance
+  int y [ages * masses, times]; // observed abundance
   int yo [ages * masses]; // index of observation status
-  real p [4, 2]; // priors
+  real p [5, 2]; // priors
   
 }
 
@@ -167,10 +168,11 @@ transformed data {
 parameters {
   
   // Declare variables
-  vector <lower=0> [masses - 1] g; // baseline growth rate
-  vector <lower=0> [masses] u; // mass-specific mortality rate
-  real <lower=0> f; // mass-specific fertility
+  vector <lower=0> [masses - 2] g; // baseline growth rate
+  vector <lower=0> [masses - 1] u; // mass-specific mortality rate
+  vector <lower=0> [times - 1] f; // mass-specific fertility
   real <lower=0> ys; // observation error sd
+  real <lower=0> fs; // observation error sd
   vector <lower=0> [ages * masses] x0; // initial abundance 
   
 }
@@ -182,8 +184,8 @@ parameters {
 transformed parameters {
   
   // Declare variables
-  matrix [ages * masses, times] x; // abundance
-  real AA [ages * masses, ages * masses, times - 1]; // projection matrix array
+  matrix <lower=0> [ages * masses, times] x; // abundance
+  real <lower=0> AA [ages * masses, ages * masses, times - 1]; // projection matrix array
   
 
   // Initial abundance
@@ -209,7 +211,7 @@ transformed parameters {
       MM = trans_expand(M, ages);
   
       // Expand fertility matrix by age
-      FF = fert_expand(masses, ages, f, fa, q);
+      FF = fert_expand(masses, ages, f[t - 1], fa, q);
       
       // Vec-permutation
       Mp = Kt * D * K * MM;
@@ -241,20 +243,26 @@ model {
   u ~ gamma(p[2, 1], p[2, 2]);
   
   // Mass-specific fertility
-  f ~ gamma(p[3, 1], p[3, 2]);
+  f[1] ~ gamma(p[3, 1], p[3, 2]);
+  for(t in 2:(times - 1)) {
+    f[t] ~ normal(f[t - 1], fs) T[0, ];
+  }
   
   // Observation error sd
-  ys ~ gamma(p[4, 1], p[4, 2]);
+  // ys ~ gamma(p[4, 1], p[4, 2]);
+  
+  // Random walk sd
+  fs ~ gamma(p[5, 1], p[5, 2]);
   
   // Initial abundance
   for (i in 1:ages * masses) {
-    x0[i] ~ normal(y[i, 1], ys) T[0, ];
+    x0[i] ~ exponential(p[4, 1]);
   }
   
   // Likelihood
   for (i in 1:ages * masses) {
     if (yo[i]  == 1) {
-     y[i, ] ~ normal(x[i, ], ys); 
+     y[i, ] ~ poisson(x[i, ] + 0.1); 
     }
   }
   

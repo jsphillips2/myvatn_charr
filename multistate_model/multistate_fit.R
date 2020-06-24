@@ -164,19 +164,12 @@ yo <- {counts_expand %>%
 
 
 # Priors
-p <- matrix(c(1.5,     1.5/0.5,      # b0s
-              1.5,     1.5/0.5,      # b1s
-              1.5,     1.5/0.5,      # us
-              1.5,     1.5/0.5,      # b0
-              1.5,     1.5/0.5,      # b1
-              1.5,     1.5/0.5,      # u
-              1.5,     1.5/0.5,      # f
-              1.5,     1.5/10     # ys
-), nrow = 8, ncol = 2, byrow = T)
-
-# weigting for penalization
-ws <- 4
-
+p <- matrix(c(1.5,     1.5/1,     # g
+              1.5,     1.5/1,     # u
+              1.5,     1.5/1,     # f
+              1/20,     1.5/10,     # ys
+              1.5,     1.5/1      # f
+), nrow = 5, ncol = 2, byrow = T)
 
 #### Matrices
 # function for block-diagonal matrix from submatrix
@@ -225,8 +218,7 @@ data_list <- list(times = times,
                   H = H,
                   y = y,
                   yo = yo,
-                  p = p,
-                  ws = ws)
+                  p = p)
 
 
 
@@ -243,20 +235,13 @@ model <- models[1]
 # model
 model_path <- paste0("multistate_model/",model,".stan")
 
-# init_fn <- function() {
-#   list(b0s = runif(1, 0.5 * p[1, 1]/p[1, 2], 1.5 * p[1, 1]/p[1, 2]),
-#        b1s = runif(1, 0.5 * p[2, 1]/p[2, 2], 1.5 * p[2, 1]/p[2, 2]),
-#        us = runif(1, 0.5 * p[3, 1]/p[3, 2], 1.5 * p[3, 1]/p[3, 2]),
-#        b0 = runif(1, 0.5 * p[4, 1]/p[4, 2], 1.5 * p[4, 1]/p[4, 2]),
-#        b1 = runif(1, 0.5 * p[5, 1]/p[5, 2], 1.5 * p[5, 1]/p[5, 2]),
-#        u = matrix(runif((masses - 1) * (times - 1),
-#                          0.5 * p[6, 1]/p[6, 2], 1.5 * p[6, 1]/p[6, 2]),
-#                    nrow = masses - 1, ncol = times - 1),
-#        f = runif(1, 0.5 * p[7, 1]/p[7, 2], 1.5 * p[7, 1]/p[7, 2]),
-#        ys = runif(1, 0.5 * p[8, 1]/p[8, 2], 1.5 * p[8, 1]/p[8, 2]),
-#        x0  = runif(ages * masses, 0.5 * mean(y), 1.5 * mean(y)))
-# }
-
+init_fn <- function() {
+  list(g = runif(1, 0.5 * p[1, 1]/p[1, 2], 1.5 * p[1, 1]/p[1, 2]),
+       u = runif(1, 0.5 * p[2, 1]/p[2, 2], 1.5 * p[2, 1]/p[2, 2]),
+       f = runif(1, 0.5 * p[3, 1]/p[3, 2], 1.5 * p[3, 1]/p[3, 2]),
+       fs = runif(1, 0.5 * p[5, 1]/p[5, 2], 1.5 * p[5, 1]/p[5, 2]),
+       x0  = runif(ages * masses, 0.1 * (1/p[4, 1]), 1.9 * (1/p[4, 1])))
+}
 
 # MCMC specifications (for testing)
 # chains <- 1
@@ -266,8 +251,8 @@ model_path <- paste0("multistate_model/",model,".stan")
 
 # MCMC specifications
 # chains <- 4
-# iter <- 500
-# adapt_delta <- 0.9
+# iter <- 2000
+# adapt_delta <- 0.95
 # max_treedepth <- 10
 
 # fit model
@@ -275,9 +260,10 @@ model_path <- paste0("multistate_model/",model,".stan")
 #             chains = chains, iter = iter,
 #             control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth))
 
-# saveRDS(fit, paste0("multistate_model/",model,"_fit.RDS"))
+# write_rds(fit, paste0("multistate_model/",model,"_fit.rds"))
 
-# fit <- readRDS("multistate_model/size_age_model_fixed_fit.RDS")
+# fit <- read_rds("multistate_model/size_age_model_fixed_fit.rds")
+
 fit_summary <- rstan::summary(fit, probs=c(0.16, 0.5, 0.84))$summary %>%
 {as_tibble(.) %>%
     mutate(var = rownames(rstan::summary(fit)$summary))}
@@ -389,7 +375,7 @@ x %>%
 
 
 fit_summary %>% 
-  filter(var == "f")
+  filter(var == "f[2]")
 
 u <- fit_summary %>%
   select(var, `16%`, `50%`, `84%`) %>%
@@ -418,4 +404,4 @@ u %>%
   scale_fill_manual(values = c("gray50","goldenrod", "firebrick","skyblue2","black"))
 
 
-bayesplot::mcmc_trace(x = fit, pars = "b1")
+bayesplot::mcmc_trace(x = fit, pars = "u[1]")
