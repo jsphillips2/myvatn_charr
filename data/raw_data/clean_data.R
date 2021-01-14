@@ -37,7 +37,7 @@ survey_clean = survey %>%
 
 
 #==========
-#========== Survey data
+#========== Harvest data
 #==========
 
 # rename variables

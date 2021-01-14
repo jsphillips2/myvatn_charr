@@ -10,14 +10,8 @@ library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores()-2)
 
-# read data
-data <- read_rdump("model/data_list.R")
-
-# introduce systematic bias in age 2 fish
-bias <- F
-if(bias == T){data$N_obs <- exp(data$n_obs)
-data$N_obs[2,] <- 2*data$N_obs[2,]
-data$n_obs <- log(data$N_obs)}
+# import data
+data<-read_csv("data/myvatn_char_clean.csv")
 
 # set theme
 theme_set(theme_bw() %+replace% 
@@ -35,211 +29,296 @@ theme_set(theme_bw() %+replace%
 
 
 #==========
+#========== Prepare Data
+#==========
+
+clean_data <-  data %>%
+  #Fill gaps in "Est.age"
+  mutate(est_age = ifelse(is.na(age)==F, age, est_age)
+  ) %>%
+  #Remove June data & samples without ages
+  filter(month != 6, is.na(est_age)==F) %>%
+  #Define Stage
+  mutate(stage = factor(ifelse(est_age == 1, "first", 
+                               ifelse(est_age==2, "second", 
+                                      ifelse(est_age==3, "third", "adult"))),
+                        levels = c("first","second","third","adult")),
+         area = ifelse(area_1 == 11, 7 ,
+                       ifelse(area_1 == 12, 8, area_1)))
+
+#count number of fish per stage per year
+site_data = clean_data %>%
+  group_by(year, stage, area) %>%
+  #Count number of fish
+  summarize(
+    count = length(length) 
+  ) %>%
+  #Merge with stage_year to keep track of 0's
+  full_join(clean_data %>% expand(stage, year, area)) %>% 
+  #Repalce NA's with 1's
+  #This only affects data for 1st year fish, which aren't used in the model
+  mutate(
+    count = ifelse(is.na(count)==T, 0L, count) 
+  ) %>%
+  ungroup()
+# write_csv(site_data, "model/site_data.csv")
+
+# plot
+ggplot(data = site_data,
+       aes(year, count))+
+  facet_wrap(~stage)+
+  geom_line(aes(group = area), size = 0.3, alpha = 0.5)+
+  geom_line(data = site_data %>% group_by(stage, year) %>% 
+              summarize(count = mean(count,na.rm=T)),
+            size = 0.9)+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_y_continuous("Abundance by site",trans="log1p",breaks=c(1,10,100))
+  
+# define indices 
+n_stages <- length(unique(site_data$stage))
+n_sites <- length(unique(site_data$area))
+n_years <- length(unique(site_data$year))
+
+# data array
+y <- array({site_data %>% arrange(year, area, stage)}$count,
+           dim = c(n_stages, 
+                   n_sites,
+                   n_years))
+
+# check
+plot(colSums(y[1,,]) /n_sites , type = "l")
+plot(colSums(y[2,,]) /n_sites , type = "l")
+plot(colSums(y[3,,]) /n_sites , type = "l")
+plot(colSums(y[4,,]) /n_sites , type = "l")
+
+# priors
+xp <- matrix(c(20,       20,
+               0,        5,
+               0,        1,
+               2,        2,
+               1.5,      1,
+               1.5,      1),
+             nrow = 6,
+             byrow = T)
+
+# scaling for avoid excessively large values for x during fitting
+k <- 100
+
+# time varying rates indicator
+tvr <- c(1, 1)
+
+# package data
+data_list <- list(n_stages = n_stages,
+                  n_sites = n_sites,
+                  n_years = n_years,
+                  y = y,
+                  xp = xp,
+                  tvr = tvr,
+                  k = k)
+
+
+
+
+#==========
 #========== Fit model
 #==========
 
-# select model
-models <- c("model_full","model_rho","model_phi","model_fixed") 
-model <- models[1]
-model_path <- paste0("model/stan/",model,".stan")
-export_path <- if(bias == T){paste0("model/output/",model,"_bias")
-} else{paste0("model/output/",model)}
+# MCMC specifications (for testing)
+# chains <- 1
+# iter <- 100
+# adapt_delta <- 0.8
+# max_treedepth <- 13
 
-# MCMC specificaions
-chains <- 4
-iter <- 2000 
-adapt_delta <- 0.975
-max_treedepth <- 15
+# MCMC specifications
+# chains <- 4
+# iter <- 3000
+# adapt_delta <- 0.95
+# max_treedepth <- 13
 
-# fit model
-fit <- stan(file = model_path, data = data, seed=1, chains = chains, iter = iter, 
-            control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth))
-
-# summary of fit
-fit_summary <- summary(fit, probs=c(0.16, 0.5, 0.84))$summary %>% 
-{as_tibble(.) %>%
-    mutate(var = rownames(summary(fit)$summary))}
-
-# check Rhat & n_eff
-fit_summary %>% filter(Rhat > 1.01) %>% select(Rhat, n_eff, var) %>% arrange(-Rhat)
-fit_summary %>% filter(n_eff < 0.5*(chains*iter/2)) %>% select(Rhat, n_eff, var) %>% arrange(n_eff) %>%
-  mutate(eff_frac = n_eff/(chains*iter/2))
-
-# save model full output
-# saveRDS(fit, paste0(export_path,"/fit.rds"))
-
-# import model fit 
-# fit <- readRDS(paste0("model/output/",model,"/fit.rds"))
-# chains <- fit@stan_args %>% length()
-# iter <- fit@stan_args[[1]]$iter
-# fit_summary <- summary(fit, probs=c(0.16, 0.5, 0.84))$summary %>%
-# {as_tibble(.) %>%
-#     mutate(var = rownames(summary(fit)$summary))}
-
-
+# # fit model
+# start_time <- Sys.time()
+# fit <- stan(file = "model/charr_model.stan",
+#             data = data_list,
+#             seed=2e3,
+#             chains = chains,
+#             iter = iter,
+#             control = list(adapt_delta = adapt_delta, max_treedepth = max_treedepth))
+# end_time <- Sys.time()
+# end_time - start_time
+# 
+# 
+# 
+# fit_sum <- rstan::summary(fit, probs = c(0.16,0.50,0.84))$summary %>%
+#     as.data.frame() %>%
+#     rownames_to_column() %>%
+#     as_tibble() %>%
+#     rename(var = rowname,
+#            lo = `16%`,
+#            mi = `50%`,
+#            hi = `84%`) %>%
+#     select(var, lo, mi, hi, n_eff, Rhat)
+# 
+# # export
+# name <- if (tvr[1] == 1 && tvr[2] == 1) {"full"} else {
+#           if (tvr[1] == 0 && tvr[2] == 1) {"fixed_r"} else {
+#             if (tvr[1] == 1 && tvr[2] == 0) {"fixed_s"} else {"fixed_all"}}}
+# write_rds(data_list, paste0("model/output/",name,"/data_list.rds"))
+# write_rds(fit, paste0("model/output/",name,"/fit.rds"))
+# write_csv(fit_sum, paste0("model/output/",name,"/fit_sum.csv"))
 
 
 
 
 
 #==========
-#========== Examine Chains
+#========== Check fit
 #==========
 
-# function for selecting fixed parameters
-fixed_par_fn <- function(x){
-  if (x == "model_full"){return(c("log_rho[1]","logit_phi[1,1]","logit_phi[2,1]","logit_phi[3,1]",
-                                  "sig_rho","sig_phi","sig_obs","sig_obs_sd",
-                                  "lp__"))}
-  if (x == "model_rho"){return(c("log_rho[1]","logit_phi[1]","logit_phi[2]","logit_phi[3]",
-                                 "sig_rho","sig_obs","sig_obs_sd",
-                                 "lp__"))}
-  if (x == "model_phi"){return(c("log_rho","logit_phi[1,1]","logit_phi[2,1]","logit_phi[3,1]",
-                                 "sig_phi","sig_obs","sig_obs_sd",
-                                 "lp__"))}
-  if (x == "model_fixed"){return(c("log_rho","logit_phi[1]","logit_phi[2]","logit_phi[3]",
-                                   "sig_obs","sig_obs_sd",
-                                   "lp__"))}
-}
+# name <- if (tvr[1] == 1 && tvr[2] == 1) {"full"} else {
+#           if (tvr[1] == 0 && tvr[2] == 1) {"fixed_r"} else {
+#             if (tvr[1] == 1 && tvr[2] == 0) {"fixed_s"} else {"fixed_all"}}}
+# fit <- read_rds(paste0("model/output/",name,"/fit.rds"))
+# fit_sum <- read_csv(paste0("model/output/",name,"/fit_sum.csv"))
 
-# extract fixed parameters
-fixed_pars <- rstan::extract(fit, pars=fixed_par_fn(model)) %>%
-  lapply(as_tibble) %>%
+x_fit <- fit_sum %>%
+  filter(str_detect(.$var, "x\\[")) %>%
+  mutate(stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))) 
+
+x_fit %>%
+  ggplot(aes(time, mi))+
+  facet_wrap(~stage, scales = "free_y")+
+  geom_line()+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi),
+              alpha = 0.2)
+
+
+s_fit <- fit_sum %>%
+  filter(str_detect(.$var, "s\\["),
+         !str_detect(.$var, "ls\\["),
+         !str_detect(.$var, "zs\\[")) %>%
+  mutate(stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))) 
+
+s_fit %>%
+  ggplot(aes(time, mi))+
+  facet_wrap(~stage)+
+  geom_line()+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi),
+              alpha = 0.2)
+
+
+r_fit <- fit_sum %>%
+  filter(str_detect(.$var, "r\\["),
+         !str_detect(.$var, "lr\\["),
+         !str_detect(.$var, "zr\\[")) %>%
+  mutate(time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))) 
+
+r_fit %>%
+  ggplot(aes(time, mi))+
+  geom_line()+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi),
+              alpha = 0.2)+
+  scale_y_continuous(trans = "log")
+
+
+ps <- fit_sum %>%
+  filter(str_detect(.$var, "p\\[")) %>%
+  mutate(stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         stage = factor(stage,
+                        levels = c(1,2,3,4),
+                        labels = c("first",
+                                   "second",
+                                   "third",
+                                   "adult")))
+
+test <- x_fit %>% 
+  mutate(stage = factor(stage,
+                        levels = c(1,2,3,4),
+                        labels = c("first",
+                                   "second",
+                                   "third",
+                                   "adult")),
+         year = 1985 + time) %>%
+  full_join(ps %>% select(stage, mi) %>% rename(p = mi)) %>%
+  mutate(lo = k * lo * p,
+         mi = k * mi * p,
+         hi = k * hi * p)
+
+ggplot(data = site_data ,
+       aes(year, count))+
+  facet_wrap(~stage)+
+  geom_line(aes(group = area), size = 0.3, alpha = 0.5)+
+  geom_line(data = test,
+            aes(y = mi),
+            size = 0.9)+
+  geom_ribbon(data = test,
+              aes(ymin = lo,
+                  ymax =hi,
+                  x = year),
+              inherit.aes = F,
+              alpha = 0.2)+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_y_continuous(trans = "log1p")
+
+fit_sum %>%
+  filter(str_detect(.$var, "slr"))
+
+fit_sum %>%
+  filter(str_detect(.$var, "p"))
+
+
+fit_sum %>%
+  filter(str_detect(.$var, "ls0"))
+
+x_pars <- {fit_sum %>%
+  filter(str_detect(.$var, "x\\["))}$var
+
+x_full <- rstan::extract(fit, pars = x_pars) %>%
+  parallel::mclapply(as_tibble) %>%
   bind_cols() %>%
-  set_names(fixed_par_fn(model)) %>%
-  mutate(chain = rep(1:chains, each = iter/2), step = rep(c(1:(iter/2)), chains))
-
-# examine chains for parameters
-fixed_pars %>%
-  gather(par, value, -chain, -step) %>%
-  ggplot(aes(step, value, color=factor(chain)))+
-  facet_wrap(~par, scales="free_y")+
-  geom_line(alpha=0.5)+
-  theme_bw()
-
-# pairs plot for parameters
-# GGally::ggpairs(fixed_pars %>% select(-chain, -step, -lp__, -sig_obs_sd))
-
-# pairs plot for parameters
-GGally::ggpairs(fixed_pars %>% select(sig_rho, sig_phi, sig_obs))
+  set_names(x_pars) %>%
+  sample_n(2000) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))) 
 
 
-# posterior densities
-fixed_pars %>%
-  gather(par, value, -chain, -step) %>%
-  filter(par != "lp__") %>%
-  ggplot(aes(value))+
-  facet_wrap(~par, scales="free")+
-  stat_density(alpha=0.5, geom = "line")+
-  theme_bw()
+y_sim_full <- x_full %>%
+  mutate(y_sim = rpois(n = length(val), val)) %>%
+  group_by(stage, time) %>%
+  full_join(fit_sum %>%
+              filter(str_detect(.$var, "p\\[")) %>%
+              mutate(stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])))%>%
+              select(stage, mi)) %>%
+  mutate(y_sim = k * mi * val)
+  
+y_sim_sum <- y_sim_full %>%  
+  group_by(stage, time) %>%
+  summarize(lo = quantile(y_sim, probs = c(0.005)),
+            mi = quantile(y_sim, probs = c(0.5)),
+            hi = quantile(y_sim, probs = c(0.975))) %>%
+  ungroup() %>%
+  mutate(stage = factor(levels(site_data$stage)[stage]))
 
-
-
-
-
-
-#==========
-#========== Posterior Predictive Check (residual autocorrelation)
-#==========
-
-# select autocorrelations
-post_pars <- c(crossing(stage = 1:3) %>%
-{paste0("acor_obs[",.$stage,"]")},
-crossing(stage = 1:3) %>%
-{paste0("acor_sim[",.$stage,"]")}) 
-
-# extract autocorrelations
-post_pred = rstan::extract(fit, pars=post_pars) %>%
-  lapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(post_pars) %>%
-  mutate(chain = rep(1:chains, each = iter/2), step = rep(c(1:(iter/2)), chains))
-
-# plot
-post_pred %>%
-  gather(var, val, -chain, -step) %>%
-  mutate(type = strsplit(var, "\\[|\\]|,") %>% map_chr(~.x[1]),
-         stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))) %>%
-  select(-var) %>%
-  spread(type, val) %>%
-  ggplot(aes(acor_obs, acor_sim))+
-  facet_wrap(~stage, nrow = 3)+
-  geom_point(alpha = 0.5)+
-  # geom_abline(intercept = 0, slope = 1)+
-  geom_hline(yintercept = 0)+
-  geom_vline(xintercept = 0)+
-  # scale_y_continuous("Residual Autocorrelation (Simulated)",limits=c(-0.7,0.7))+
-  # scale_x_continuous("Residual Autocorrelation (Observed)",limits=c(-0.7,0.7))+
-  coord_equal()
-
-
-
-
-
-#==========
-#========== Clean output and export
-#==========
-
-# select vars to extract for demographic analysis
-time_pars_fn <- function(x){
-  if(x == "model_full"){return(c(paste0("rho_scale[",1:(data$nYears-1),"]"),
-                                 crossing(stage = 1:3, time = 1:(data$nYears-1)) %>%
-                                 {paste0("phi[",.$stage,",",.$time,"]")}))}
-  if(x == "model_rho"){return(c(paste0("rho_scale[",1:(data$nYears-1),"]"),
-                              crossing(stage = 1:3) %>%
-                                {paste0("phi[",.$stage,"]")}))}
-  if(x == "model_phi"){return(c("rho_scale",
-                                crossing(stage = 1:3, time = 1:(data$nYears-1)) %>%
-                                 {paste0("phi[",.$stage,",",.$time,"]")}))}
-  if(x == "model_fixed"){return(c("rho_scale",
-                                  crossing(stage = 1:3) %>%
-                                  {paste0("phi[",.$stage,"]")}))}
-}
-
-# extract full chains for demographic analysis
-time_pars <- rstan::extract(fit, pars=time_pars_fn(model)) %>%
-  lapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(time_pars_fn(model)) %>%
-  mutate(chain = rep(1:chains, each = iter/2), step = rep(c(1:(iter/2)), chains)) %>%
-  gather(var, value, -chain, -step) %>%
-  mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~.x[1]),
-         stage = ifelse(name %in% c("phi"),
-                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])), NA),
-         time = ifelse(name %in% c("phi"),
-                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-                       ifelse(name %in% c("rho_scale"),
-                              strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])), NA))) %>%
-  select(name, chain, step, stage, time, value) %>%
-  arrange(name, chain, step, stage, time)
-
-# summary
-fit_clean <- fit_summary %>%
-  rename(lower16 = `16%`, middle = `50%`, upper84 = `84%`)  %>%
-  mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~.x[1]),
-         stage = ifelse(name %in% c("n_init","n_pred","N"),
-                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])), 
-                        ifelse(name %in% c("logit_phi_init","logit_phi","phi","sig_phi"),
-                               strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])+1L), NA)),
-         time = ifelse(name %in% c("logit_phi_init","logit_phi","phi","n_init","n_pred","N"),
-                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])), 
-                       ifelse(name %in% c("log_rho","rho","N_tot","lambda","rho_scale"),
-                              strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])), NA))) %>%
-  select(name, stage, time, middle, lower16, upper84) 
-
-# export
-export_path <- if(bias == T){paste0("model/output/",model,"_bias")
-  } else{paste0("model/output/",model)}
-# write_csv(fixed_pars, paste0(export_path, "/fixed_pars.csv"))
-# write_csv(fit_clean, paste0(export_path,"/fit_summary.csv"))
-# write_csv(time_pars, paste0(export_path,"/time_pars.csv"))
-# write_csv(post_pred, paste0(export_path,"/post_pred_pars.csv"))
-
-
-
-
-
-
-
+ggplot(data = site_data ,
+       aes(year, count))+
+  facet_wrap(~stage, scale = "free_y")+
+  geom_ribbon(data = y_sim_sum,
+            aes(ymin = lo,
+                ymax = hi,
+                x = time + 1985),
+            alpha = 0.3,
+            inherit.aes = F)+
+  geom_line(data = y_sim_sum,
+            aes(y = mi,
+                x = time + 1985))+
+  geom_line(aes(group = area), size = 0.3, alpha = 0.5)+
+  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_y_continuous(trans = "log1p")
 
 
