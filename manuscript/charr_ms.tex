@@ -1,0 +1,186 @@
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Preliminaries
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+\documentclass[11pt]{article}
+\usepackage[letterpaper, margin=1in]{geometry}
+\usepackage{newtxtext,newtxmath}
+\usepackage[math-style=ISO]{unicode-math}
+\usepackage{fullpage}
+\usepackage[authoryear,sectionbib]{natbib}
+\linespread{1.7}
+\usepackage[utf8]{inputenc}
+\usepackage{lineno}
+\usepackage{titlesec}
+\titleformat{\section}[block]{\Large\bfseries\filcenter}{\thesection}{1em}{}
+\titleformat{\subsection}[block]{\Large\itshape\filcenter}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}[block]{\large\itshape}{\thesubsubsection}{1em}{}
+\titleformat{\paragraph}[runin]{\itshape}{\theparagraph}{1em}{}[. ]\renewcommand{\refname}
+  {Literature Cited}
+\DeclareTextSymbolDefault{\dh}{T1} % for Icelandic ð symbol:
+\usepackage{graphicx} % for figures
+\usepackage{booktabs} % for tables
+\usepackage{amsmath} % for split math environment
+\usepackage{enumitem}
+
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Title page
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+
+\title{Opposing trends in survival and recruitment slow recovery of an overexploited fishery}
+
+\author{
+Joseph S. Phillips$^{1,2, \dagger}$ \\
+Gu{\dh}ni Gu{\dh}ergsson$^{3}$ \\
+Anthony R. Ives$^{2}$
+}
+
+\date{}
+
+\begin{document}
+
+\raggedright
+\setlength\parindent{0.25in}
+
+\maketitle
+
+
+\noindent{} 1. Department of Aquaculture and Fish Biology, 
+H\'{o}lar University, Skagafj\"{o}r{\dh}ur 551 Iceland
+
+\noindent{} 2. Department of Integrative Biology, 
+University of Wisconsin, Madison, Wisconsin 53706 USA
+
+\noindent{} 3. Marine and Freshwater Research Institute, Reykjav\'{i}k, Iceland
+
+\noindent{} $\dagger$ E-mail: joseph@holar.is
+
+
+
+\bigskip
+
+Running head: {Myvatn charr}
+
+\linenumbers{}
+
+\clearpage
+
+
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Abstract
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+\input{00-abstract}
+
+\bigskip
+
+\textit{Keywords}: {}
+
+\clearpage
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Main text
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+\input{01-intro}
+
+\input{02-methods}
+
+\input{03-results}
+
+\input{04-discussion}
+
+
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% References, appendix, figures, etc.
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+\bibliographystyle{ecology.bst}
+\clearpage
+
+\bibliography{refs.bib}
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{figure}
+\centering
+\includegraphics{../analysis/p_catch.pdf}
+\caption{\label{fig:p_catch}
+.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{figure}
+\centering
+\includegraphics{../analysis/p_dens.pdf}
+\caption{\label{fig:p_dens}
+.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{figure}
+\centering
+\includegraphics{../analysis/p_surv.pdf}
+\caption{\label{fig:p_surv}
+.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{figure}
+\centering
+\includegraphics{../analysis/p_rec.pdf}
+\caption{\label{fig:p_rec}
+.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{figure}
+\centering
+\includegraphics{../analysis/p_lam.pdf}
+\caption{\label{fig:p_lam}
+.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+\end{document}
+
