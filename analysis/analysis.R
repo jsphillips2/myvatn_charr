@@ -418,7 +418,7 @@ p_rec <- ggplot(data = lr_fit,
             aes(x = year,
                 y = fit),
             size = 0.5)+
-  scale_y_continuous("log (recruitment)",
+  scale_y_continuous(log~(recruitment~capita^{-1}),
                      limits = c(-1, 9),
                      breaks = c(-1, 2, 5, 8))+
   scale_x_continuous("Year",
@@ -448,58 +448,70 @@ p_rec
 #========== Asymptotic growth ratee
 #=========================================================================================
 
-# # extract population density from MCMC (subset 2000)
-# dem_pars <- {fit_sum %>%
-#     filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
-#            !str_detect(.$var, "ls\\["),
-#            !str_detect(.$var, "zs\\["),
-#            !str_detect(.$var, "lr\\["),
-#            !str_detect(.$var, "zr\\["))}$var
-# dem_full <- rstan::extract(fit, pars = dem_pars) %>%
-#   parallel::mclapply(as_tibble) %>%
-#   bind_cols() %>%
-#   set_names(dem_pars) %>%
-#   sample_n(2000) %>%
-#   mutate(step = row_number()) %>%
-#   gather(var, val, -step) %>%
-#   mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
-#          age = ifelse(name == "r", 
-#                       1,
-#                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
-#          time = ifelse(name == "r",
-#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
-#          year = sort(unique(data$year))[time]) 
-# 
-# # define matrix of zeros for storing values
-# mat0 <- matrix(0, nrow = 4, ncol = 4)
-# 
-# # fill matrix and calculate asymptotic growth rate
-# lambda <- dem_full %>%
-#   split(.$step) %>%
-#   parallel::mclapply(function(x_){
-#     x_ %>% split(.$year) %>%
-#       lapply(function(xx_){
-#         v_ = xx_$val
-#         mat_ <- mat0
-#         mat_[1, 4] <- v_[1]
-#         mat_[2, 1] <- v_[2]
-#         mat_[3, 2] <- v_[3]
-#         mat_[4, 3] <- v_[4]
-#         mat_[4, 4] <- v_[5]
-#         lam_ = eigen.analysis(mat_)$lambda1
-#         return(tibble(year = unique(xx_$year),
-#                       lam = lam_))
-#       }) %>%
-#       bind_rows()
-#   }) %>% bind_rows() %>%
-#   group_by(year) %>%
-#   summarize(lo = quantile(lam, probs = c(0.16)),
-#             mi = quantile(lam, probs = c(0.5)),
-#             hi = quantile(lam, probs = c(0.84)))
-# write_csv(lambda, "analysis/lambda.csv")
+# extract population density from MCMC (subset 2000)
+dem_pars <- {fit_sum %>%
+    filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
+           !str_detect(.$var, "ls\\["),
+           !str_detect(.$var, "zs\\["),
+           !str_detect(.$var, "lr\\["),
+           !str_detect(.$var, "zr\\["))}$var
+dem_full <- rstan::extract(fit, pars = dem_pars) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(dem_pars) %>%
+  sample_n(2000) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
+         age = ifelse(name == "r",
+                      1,
+                      strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
+         time = ifelse(name == "r",
+                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
+         year = sort(unique(data$year))[time])
 
-# lambda <- read_csv("analysis/lambda.csv")
+# define matrix of zeros for storing values
+mat0 <- matrix(0, nrow = 4, ncol = 4)
+
+# fill matrix and calculate asymptotic growth rate
+lambda_full <- dem_full %>%
+  split(.$step) %>%
+  parallel::mclapply(function(x_){
+    x_ %>% split(.$year) %>%
+      lapply(function(xx_){
+        v_ = xx_$val
+        mat_ <- mat0
+        mat_[1, 4] <- v_[1]
+        mat_[2, 1] <- v_[2]
+        mat_[3, 2] <- v_[3]
+        mat_[4, 3] <- v_[4]
+        mat_[4, 4] <- v_[5]
+        lam_ = eigen.analysis(mat_)$lambda1
+        return(tibble(year = unique(xx_$year),
+                      lam = lam_))
+      }) %>%
+      bind_rows()
+  }) %>% bind_rows() 
+# write_csv(lambda_full, "analysis/lambda_full.csv")
+
+# mean lambda
+lambda_full %>%
+  group_by(year) %>%
+  mutate(step = row_number()) %>%
+  group_by(step) %>%
+  summarize(lam = prod(lam) ^ (1 / length(lam))) %>%
+  ungroup() %>%
+  summarize(lo = quantile(lam, probs = c(0.16)),
+            mi = quantile(lam, probs = c(0.5)),
+            hi = quantile(lam, probs = c(0.84)))
+
+# lambda_full <- read_csv("analysis/lambda_full.csv")
+lambda <- lambda_full %>%
+  group_by(year) %>%
+  summarize(lo = quantile(lam, probs = c(0.16)),
+            mi = quantile(lam, probs = c(0.5)),
+            hi = quantile(lam, probs = c(0.84)))
 
 
 # fit model
