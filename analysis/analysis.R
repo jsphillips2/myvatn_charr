@@ -17,7 +17,11 @@ site_data <- read_csv("model/site_data.csv") %>%
                         levels = c("first",
                                    "second",
                                    "third",
-                                   "adult")))
+                                   "adult"),
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+")))
 
 
 # import model fit
@@ -47,7 +51,7 @@ year_limits <- c(1985, 2017)
 
 # stage colors
 stage_colors <- c("firebrick","dodgerblue","magenta4","goldenrod")
-names(stage_colors) <- c("first","second","third","adult")
+names(stage_colors) <- c("age 1","age 2","age 3","age 4+")
 
 #=========================================================================================
 
@@ -90,10 +94,10 @@ detect_prob <- fit_sum %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          stage = factor(age,
                         levels = c(1,2,3,4),
-                        labels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult")))
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+")))
 
 # extract population density from MCMC (subset 2000)
 x_pars <- {fit_sum %>%
@@ -109,10 +113,10 @@ x_full <- rstan::extract(fit, pars = x_pars) %>%
          year = sort(unique(data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
-                        labels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult"))) 
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) 
 
 # simulate prediction interval and summarize 90%
 x_pred <- x_full %>%
@@ -202,10 +206,10 @@ x_fit <- fit_sum %>%
          year = sort(unique(data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
-                        labels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult"))) %>%
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) %>%
   full_join(detect_prob %>% 
               mutate(p = mi) %>%
               select(p, stage)) %>%
@@ -235,8 +239,8 @@ p_dens <- ggplot(data = x_fit,
                 color = stage),
             size = 3.5,
             inherit.aes = F,
-            nudge_y = c(-0.5, -0.25, 0, -3),
-            nudge_x = c(-1, -1.5, -2.5, 3.5))+
+            nudge_y = c(0, 0, 0, -3),
+            nudge_x = c(-2.6, -2.6, -2.6, 3.5))+
   geom_line(size = 0.5)+
   geom_ribbon(aes(ymin = lo,
                   ymax = hi),
@@ -248,7 +252,7 @@ p_dens <- ggplot(data = x_fit,
                      labels = c("0.5",  "50",  "5000"))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
-                     limits = c(min(year_limits) - 2,
+                     limits = c(min(year_limits) - 2.6,
                                 max(year_limits)))+
   scale_color_manual(values = stage_colors,
                      guide = F)+
@@ -287,10 +291,10 @@ ls_fit <- fit_sum %>%
          year = sort(unique(data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
-                        labels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult"))) 
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) 
 
 # function to fit AR models for trends
 ar_fit_fn <- function(stage_) {
@@ -333,9 +337,9 @@ ar_fit_fn <- function(stage_) {
 }
 
 # apply function to stages
-ar_fit <- lapply(c("first","second","third","adult"),
+ar_fit <- lapply(c("age 1","age 2","age 3","age 4+"),
                  ar_fit_fn) %>% 
-  set_names(c("first","second","third","adult"))
+  set_names(c("age 1","age 2","age 3","age 4+"))
 
 # summary
 lapply(ar_fit, function(x_){x_$summary})
@@ -346,10 +350,10 @@ ls_pred <- lapply(ar_fit, function(x_){x_$fit}) %>%
   mutate(fit = sd * fit + mu,
          se.fit = sd * fit + mu,
          stage = factor(stage,
-                        levels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult")))
+                        levels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+")))
 
 # plot annotation
 labs <- x_full %>%
@@ -565,14 +569,14 @@ lambda <- lambda_full %>%
 
 
 # define values for z-scoring
-mu_lam = mean(lambda$mi)
-sd_lam = sd(lambda$mi)
+mu_lam = mean(log(lambda$mi))
+sd_lam = sd(log(lambda$mi))
 
 # fit model
 lam_ar = gls(z ~ time,
              corAR1(form = ~year),
              data  = lambda %>% 
-               mutate(z = (mi - mu_lam) / sd_lam,
+               mutate(z = (log(mi) - mu_lam) / sd_lam,
                       time = (year - mean(year)) / sd(year)))
 
 # summarize
@@ -588,8 +592,8 @@ lam_nd = data.frame(year = seq(min(lambda$year),
 lam_fit = cbind(lam_nd,
                 predictSE.gls(lam_ar, newdata = lam_nd, print.matrix = T)) %>%
   as_tibble() %>%
-  mutate(fit = sd_lam * fit + mu_lam,
-         se.fit = sd_lam * se.fit + mu_lam)
+  mutate(fit = exp(sd_lam * fit + mu_lam),
+         se.fit = exp(sd_lam * se.fit + mu_lam))
 
 
 # plot
@@ -611,7 +615,7 @@ p_lam <- lambda %>%
             aes(x = year,
                 y = fit),
             size = 0.5)+
-  scale_y_continuous("Asymptotic growth rate",
+  scale_y_continuous("Population growth rate",
                      trans = "log",
                      breaks = c(1/3, 1, 3),
                      labels = c("1/3","1","3"),
@@ -652,10 +656,10 @@ detect_prob_reduced <- fit_sum_reduced %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          stage = factor(age,
                         levels = c(1,2,3,4),
-                        labels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult")))
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+")))
 
 # extract population density from MCMC (subset 2000)
 x_pars <- {fit_sum_reduced %>%
@@ -671,10 +675,10 @@ x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars) %>%
          year = sort(unique(data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
-                        labels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult"))) 
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) 
 
 # simulate prediction interval and summarize 90%
 x_pred_reduced <- x_full_reduced %>%
@@ -764,10 +768,10 @@ x_fit_reduced <- fit_sum_reduced %>%
          year = sort(unique(data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
-                        labels = c("first",
-                                   "second",
-                                   "third",
-                                   "adult"))) %>%
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) %>%
   # scale by k
   mutate(lo = k * lo,
          mi = k * mi,
@@ -794,7 +798,7 @@ p_dens_reduced <- ggplot(data = x_fit_reduced,
                 color = stage),
             size = 3.5,
             inherit.aes = F,
-            nudge_x = -1.5)+
+            nudge_x = c(-3.2, -3.2, -3.2, -2.8))+
   geom_line(size = 0.5)+
   geom_ribbon(aes(ymin = lo,
                   ymax = hi),
@@ -807,7 +811,7 @@ p_dens_reduced <- ggplot(data = x_fit_reduced,
                      limits = c(1.9, 200))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
-                     limits = c(min(year_limits) - 2,
+                     limits = c(min(year_limits) - 3.2,
                                 max(year_limits)))+
   scale_color_manual(values = stage_colors,
                      guide = F)+
