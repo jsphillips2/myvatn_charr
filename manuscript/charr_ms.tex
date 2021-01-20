@@ -124,6 +124,51 @@ Running head: {Myvatn charr}
 
 % ---------------------------------------------------------------------------------------
 \clearpage
+\begin{table}
+\caption{\label{tab:param}
+Parameters.}
+\setlength{\tabcolsep}{12pt}
+\begin{tabular}{llc}
+\toprule
+Parameter              &                      & Estimate [\text{UI}_{68\%}] \\
+\cmidrule{1-3}
+detection probability  & first                & 0.001 [0.0006, 0.002]       \\
+&                        second               & 0.08 [0.05, 0.13]           \\
+&                        third                & 0.48 [0.32, 0.67]           \\
+&                        adult                & 0.66 [0.48, 0.83]           \\
+random walk SD         & survival probability & 2.03 [1.79, 2.30]           \\
+&                        recruitment          & 1.45 [1.25, 1.70]           \\
+\bottomrule
+\end{tabular}
+\end{table}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{table}
+\caption{\label{tab:gls}
+GLS model results.}
+\setlength{\tabcolsep}{12pt}
+\begin{tabular}{llccc}
+\toprule
+Demographic rate       &        & Intercept (\pm~\text{SE}) & Slope (\pm~\text{SE}) & AR coefficient \\
+\cmidrule{1-5}
+surival probability    & first  & 0.01  \pm~0.23            & 0.26  \pm~0.23        & 0.26           \\
+&                        second & 0.00  \pm~0.15            & 0.13  \pm~0.15        & -0.18          \\
+&                        third  & 0.04  \pm~0.54            & 0.25  \pm~0.44        & 0.80           \\
+&                        adult  & -0.02 \pm~0.26            & 0.55  \pm~0.25        & 0.53           \\
+recruitment            &        & -0.06 \pm~0.29            & -0.71 \pm~0.27        & 0.56           \\
+population growth rate &        & 0.00  \pm~0.15            & 0.00 \pm~0.16         & -0.17          \\
+\bottomrule
+\end{tabular}
+\end{table}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+
+% ---------------------------------------------------------------------------------------
+\clearpage
 \begin{figure}
 \centering
 \includegraphics{../analysis/p_catch.pdf}
@@ -176,6 +221,46 @@ Running head: {Myvatn charr}
 \centering
 \includegraphics{../analysis/p_lam.pdf}
 \caption{\label{fig:p_lam}
+.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Supplemental figures
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\theequation}{S\arabic{equation}}
+\renewcommand{\thetable}{S\arabic{table}}
+\setcounter{equation}{0}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+
+% ---------------------------------------------------------------------------------------
+\begin{figure}
+\centering
+\includegraphics{../analysis/p_catch_reduced.pdf}
+\caption{\label{fig:p_catch_reduced}
+.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{figure}
+\centering
+\includegraphics{../analysis/p_dens_reduced.pdf}
+\caption{\label{fig:p_dens_reduced}
 .
 }
 \end{figure}

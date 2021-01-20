@@ -66,7 +66,7 @@ called “adults” or “age 4” for simplicity.
 \subsection*{Demographic model} 
 % ---------------------------------------------------------------------------------------
 
-We characterized the demography of the charr popupaltion using an age structured model
+We characterized the demography of the charr population using an age-structured model
 with time-varying demographic rates.
 The model projected the dynamics from one time step to the next as
 %
@@ -74,13 +74,14 @@ The model projected the dynamics from one time step to the next as
     \mathbf{x}_t = \mathbf{P}_{t-1}~\mathbf{x}_{t-1}
 \end{equation}
 %
-where $\mathbf{P}_{t}$ is the demographic projection matrix
-and $\mathbf{x}_t$ is an age-structured vector of abundances at time $t$.
+where $\mathbf{P}_{t}$ is a demographic projection matrix
+and $\mathbf{x}_t$ is an age-structured vector of scaled population densities (see below)
+at time $t$.
 %
 The projection matrix was defined as
 %
 \begin{equation} \label{eq:matrix}
-\mathbf{P}_{i,t} = 
+\mathbf{P}_{t} = 
 \left[
 \begin{array}{cccccccc}
     0             & 0             & 0             & \rho_{t}     \\
@@ -91,10 +92,10 @@ The projection matrix was defined as
 \right]
 \end{equation}
 %
-where $\rho_{t}$ is per capita recruitment and $\phi_{1,t}$ is the survival probability
-of age class $i$. 
-The model assumes that only individuals of age four or greater reproduce,
-and also allows individuals return to the adult age class.
+where $\rho_{t}$ is per capita recruitment 
+and $\phi_{1,t}$ is the survival probability of age class $i$. 
+The model assumes that only individuals of age four or greater reproduce
+and allows adults return to the adult age class.
 %
 Temporal variation in recruitment was modeled as a random walk on a log scale to ensure
 that the values remained positive:
@@ -109,24 +110,25 @@ that the values remained positive:
 where $\epsilon_{\rho,t}$ is the random walk step at time $t$.
 The steps of the random walk followed a Gaussian distribution with mean 0 
 and standard deviation $\epsilon_{\rho,t}$.
-Temporal variation in survival probability for age class $i$ was modeled analagously 
+Temporal variation in survival probability for age class $i$ was modeled analogously 
 on a logit-scale:
 %
 \begin{equation} \label{eq:phi}
 \begin{aligned}
 \text{logit}\left(\phi_{i, t}\right) &= \text{logit}\left(\phi_{i, t - 1}\right) +
                                           \epsilon_{\phi,i,t} \\
-\epsilon_{\phi,i,t} &\sim \mathematical{N}\left(0, \sigma_{\phi} \right)
+\epsilon_{\phi,i,t} &\sim \mathematical{N}\left(0, \sigma_{\phi} \right)\text{.}
 \end{aligned}
 \end{equation}
-\text{.}
 %
-Note that the random walks used to characterize the demographic parameters 
-are not truly ``random'' as they are constrained by the data during model fitting.
+Note that the ``random walks'' used to characterize the demographic parameters 
+do not necessarily possess the statistical properties 
+of true random walks (e.g., non-stationarity) 
+as they are constrained by the data during model fitting.
 Rather, they provided a convenient means 
 of allowing the parameters to vary smoothly through time.
 
-We paramterized the demographic model in a Bayesian framework, with likelihood
+We parameterized the demographic model in a Bayesian framework, with likelihood
 %
 \begin{equation} \label{eq:likelihood}
 \mathcal{L} = 
@@ -135,18 +137,74 @@ We paramterized the demographic model in a Bayesian framework, with likelihood
 \displaystyle\prod_{t}
 \text{Poisson}
     \left(
-        y_{s,i,t}~|~\gamma_i~\times~x_{i,t}
+        y_{s,i,t}~|~\kappa_i~\times~s~\times~x_{i,t}
     \right)
 \end{equation}
 %
 where $y_{s,i,t}$ is the annual catch for station $s$ and age class $i$,
-and $\gamma_i$ is the age-specific detection probability.
+$\kappa_i$ is the age-specific detection probability,
+and $s=100$ is a scaling factor introduced to improve computationally efficiency
+by preventing exessively large values of $x_{i,t}$ 
+(such that $x_{i,t}$ itself is the population density scaled by $1/s$).
+The likelihood implies that the station-level abundance follows a Poisson distribution
+with a rate parameter equal to the lake-wide mean population density 
+scaled by the catch probability for the corresponding age class.
+We assumed that the lake-wide population was well mixed across years,
+and while we did not attempt to account for systematic differences between stations
+no such differences were apparent from visual inspection of the data 
+(see discussion of overdispersion below).
 Estimating a separate detection probability for each age class allowed the model to account
 for systematic differences in catch rates as a function of age.
 Such differences are quite apparent in the data, 
 as far too few first year individuals are captured to account for the abundance subsequent
 ages, assuming a closed population. 
-Our model is similar to an N-mixture model, 
-however it does not include an explicit binomial detection process.
+Our model is superficially similar to an N-mixture model, 
+however it does not include an explicit binomial detection process of discrete latent states.
 We opted for the simpler approach because we encountered substantial convergence problems
-when attempting to fit a proper N-mixture model.
+when attempting to fit a ``proper'' N-mixture model to these data.
+We used exponential priors with rate 1/50 for the initial scaled population densities for
+each age class, 
+Gaussian priors with mean 0 and standard deviation of either 5 or 1 for 
+initial log-recruitment or logit-survival (repsectively), 
+Gamma priors with shape and scale both of 1.5,
+and Beta priors with shape parameters both of 2 for the detection probability.
+Priors were selected to be weakly informative regarding overall scale, 
+while not acting strongly against the likelihood in the posterior fit.
+
+To assess temporal trends in the demographic rates, 
+we used generalized least squares  (GLS) to fit lag-1 autoregressive models
+with linear year effects.
+Recruitment and survival probabilities were fit on their corresponding link scales 
+(either log or logit),
+and survival probabilities were fit for each age class separately.
+We used a similar approach to calculate trends in the asymptotic population growth rate
+$\lambda_t$, caclulated as the leading eigenvalue of projection matrix $\mathbf{P}_{t}$.
+We performed this analysis on the asymptotic (as opposed to realized) growth rate 
+as we were principally interersted in the effects 
+of the underlying demographic rates per se; 
+the realized growth rate would also have included transient fluctuations due to
+non-equilibrium age structure.
+For all GLS models, the response variables and year were z-scored so that coefficients
+could be interpreted as effects sizes;
+fitted values were then back-scaled for the figures.
+
+The demographic model was fit using the software Stan through the \texttt{rstan} package,
+with 4 chains, 3000 iterations, maximumum tree depth set to 13, and adapt delta set to 0.95.
+Convergence and quality of MCMC sampling were assessed using the diagnostics provided by Stan, 
+incuding Rhat, the number of divergences, and the effective sample size.
+We used posterior medians as point esitmates 
+and the bounds of 68\% posterior quantiles as uncertainty intervals 
+(hereafter $\text{UI}_{68\%}$), 
+matching the coverage of standard errors.
+To gauge the degree to which the data were overdispersed relative 
+the the model expectations, 
+we simulated 90\% prediction intervals from equation \ref{eq:likelihood} 
+and compared the coverage of these intervals to the data.
+To assess the extent to which the data contained information regarding temporal variation 
+in the demographic rates,
+we compared the fit of the full model to a reduced model with the demographic
+rates fixed through time.
+We performed GLS using the \texttt{gls} function from the \texttt{nlme} package 
+and calculated the asymptotic growth rate using the \texttt{demogR} package.
+All analysis were conducted in R 4.0.3. 
+

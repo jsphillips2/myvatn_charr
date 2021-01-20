@@ -1,3 +1,40 @@
 % ---------------------------------------------------------------------------------------
 \section*{Results}
 % ---------------------------------------------------------------------------------------
+
+The full model provided a good visual fit to the station-level 
+catch data (Figure \ref{fig:p_catch}),
+with most of the variation in average catch being captured by the model.
+The 90\% prediction intervals provided reasonable coverage relative to the observed data,
+although the latter were slightly zero-inflated in some years.
+While in principle it would be possible to account for such zero inflation,
+it is unlikely that this would substantively alter the model inference.
+In contrast to the full model,
+the reduced model provided a poor fit to the data (Figure \ref{fig:p_catch_reduced}),
+displaying damped oscillations that did not reflect the observed dynamics
+(Figure \ref{fig:p_dens_reduced}).
+This was corroborated the median posterior log-likelihood calculated
+from equation \ref{eq:likelihood},
+which was much higher for the full model (-4826) than for the reduced (-7314).
+According to the full model, 
+the detection probabilities increased with age,
+with age 1 individuals having a catch probably an order of magnitude lower
+than the other age classes (Table \ref{tab:param}).
+
+
+M\'{y}vatn's arctic charr population fluctuated substantially over the 3-decade time series
+(Figure \ref{fig:p_dens}), 
+resulting from interannual variation in survival (Figure \ref{fig:p_surv}) 
+and recruitment (Figure \ref{fig:p_rec}) 
+as indicated by the random walk standard deviations (Table \ref{tab:param}).
+The survival probabilities for all age classes increased through time,
+although only the trend for adults was unambiguous (Table \ref{tab:gls}). 
+In contrast, per capita recruitment declined through time, 
+potentially counteracting the effects of increased adult survival.
+Indeed, the geometric mean of the asymptotic growth rate across years was very close to one
+(0.99; [0.970, 1.02]), indicating no long-term population change.
+Furthermore, there was no clear trend in the population growth rate itself,
+despite its large interannual fluctuations.
+Together, these results show that while the arctic charr population was very dynamic
+over the study period, it did not undergo meaningful directional change.
+
