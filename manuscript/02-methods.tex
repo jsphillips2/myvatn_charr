@@ -6,68 +6,69 @@
 \subsection*{Study system} 
 % ---------------------------------------------------------------------------------------
 
-Mývatn is located in northeastern Iceland (65°40’N 17°00’W) 
-and has a tundra-subarctic climate (Björnsson and Jónsson 2004). 
-The lake is 37 km2, divided into north (8 km2) and south (29 km2) basins 
-connected by a narrow channel (Einarsson et al. 2004). 
-Mývatn is shallow (mean depth = 2.3 m) and is fed by cold and 
-warms springs rich in phosphorous 
-(south basin N and P inputs of 1.4 and 1.5 g m-2 y-1, respectively) (Ólafsson 1979). 
-Consequently, the lake has high primary production 
-(Ólafsson 1979) that supports large but variable populations of benthic invertebrates 
-such as midges and cladocerans 
-(Lindegaard and Jónasson 1979, Einarsson and Örnólfsdóttir 2004, Garðarsson et al. 2004). 
-The benthic invertebrates are an important food source for Mývatn’s vertebrate populations, 
+M\'{y}vatn is located in northeastern Iceland (65°40’N 17°00’W) 
+and has a tundra-subarctic climate. 
+The lake spans $37 \text{km}^2$, 
+divided into north ($8 \text{km}^2$) and south ($29 \text{km}^2$) basins 
+connected by a narrow channel \citep{einarsson2004myvatn}. 
+M\'{y}vatn is shallow (south basin mean depth = 2.3m) and 
+fed by nurient rich springs that sustain high benthic primary and secondary production.
+The latter comprises large but temporally variable populations of benthic invertebrates 
+such as midges and cladocerans \citep{einarsson2004clad, gardarsson2004population}.
+The benthic invertebrates are an important food source for M\'{y}vatn’s vertebrate populations, 
 including Arctic charr, three-spined sticklebacks (Gasterosteus aculeatus), 
-brown trout (Salmo trutta), and waterfowl (Einarsson et al. 2004). 
+brown trout (Salmo trutta), and waterfowl \citep{einarsson2004myvatn}. 
 
 Arctic charr (Salvelinus alpinus) are salmonids with a circumpolar distribution 
-and are important consumers in many boreal and arctic lakes (Klemetsen et al. 2003). 
-While some charr populations are anadromous (Klemetsen et al. 2003), 
-Mývatn’s population to resides strictly within the lake, 
-despite a major outflow that connects the lake to the Greenland Sea (Guðbergsson 2004). 
+and are important consumers in many boreal and arctic lakes \citep{klemetsen2003atlantic}. 
+While some charr populations are anadromous, 
+M\'{y}vatn’s population to resides strictly within the lake, 
+despite a major outflow that connects the lake to the Greenland Sea \citep{gudbergsson2004}. 
 Spawning occurs in the fall among individuals aged 4 years and older. 
-There are two charr morphs within Mývatn: “regular” (size at maturation of 35-50cm) 
-and “dwarf” (20-25cm). However, the dwarf morph is restricted to a small 
+There are two charr morphs within M\'{y}vatn: ``regular'' (size at maturation of 35--50cm) 
+and ``dwarf'' (20--25cm). However, the dwarf morph is restricted to a small 
 and relatively isolated part of the south basin; therefore, 
-the “regular” morph is the focus of this study. 
+the ``regular'' morph is the focus of this study. 
 Gut content data reveal a diverse diet, including midges, snails, clams, zooplankton, 
 benthic crustaceans, and sticklebacks. 
 The large-bodied cladoceran Eurycercus is thought to be a particularly important prey item 
-(Guðbergsson 2004). 
-While some charr populations are cannibalistic (Klemetsen et al. 2003), 
+\citep{gudbergsson2004}. 
+While some charr populations are cannibalistic \citep{klemetsen2003atlantic}, 
 especially in the absence of other large-bodied prey (e.g., fish), 
-the charr in Mývatn appear to lack cannibalism. 
+the charr in M\'{y}vatn appear to lack cannibalism. 
 
 % ---------------------------------------------------------------------------------------
 \subsection*{Data} 
 % ---------------------------------------------------------------------------------------
 
-Systematic surveys of Mývatn’s Arctic charr have been conducted 
-with gill nets every year from 1986-2017 by a single researcher (G. Guðbergsson) 
+Systematic surveys of M\'{y}vatn’s Arctic charr have been conducted 
+with gill nets every year from 1986-2017 by a single researcher (G. Gu{\dh}bergsson) 
 using a consistent methodology. 
 The surveys largely took place after the period of most dramatic population decline 
-(Guðbergsson 2004). Most captured individuals were measured for length, mass, 
-age (either based on otoliths or estimated from size), and a binary index of maturity. 
-Surveys were conducted at 12 sites around the lake, 
+\citep{gudbergsson2004} 
+and were intended to monitor the recovery of the population following its collapse. 
+Twelve survey stations were sambled from around the lake,
 most of which were located in the south basin. 
-Surveys were conducted in fall (late August through September) 
+Captured individuals were aged either by otoliths directly or 
+with an estimate based on length.
+The surveys were conducted in fall (late August through September) 
 of every year (just before spawning) and in June in a subset of years. 
 For this analysis we used only the September data. 
-Therefore, in our age classifications an individual of age ‘x’ is an individual 
-that survived to that age (e.g., an “age 1” individual was born in the previous fall). 
+Therefore, in our age classifications an individual of age ``x'' is an individual 
+that survived to that age (e.g., an ``age 1'' individual was born in the previous fall). 
 The oldest individuals in the data set were 12 years old, although observations 
-of individuals older than 6 years are sparse (Figure S2). 
-In Mývatn, charr reach maturity between 4 and 5 years of age, 
-and therefore we grouped the older individuals into a single reproductive age class, 
-called “adults” or “age 4” for simplicity.
+of individuals older than 6 years are sparse. 
+In M\'{y}vatn, charr reach maturity between 4 and 5 years of age, 
+and therefore we grouped the older individuals into a single reproductive age class
+denoted ``age 4+''.
 
 % ---------------------------------------------------------------------------------------
-\subsection*{Demographic model} 
+\subsection*{Statistical analysis} 
 % ---------------------------------------------------------------------------------------
 
-We characterized the demography of the charr population using an age-structured model
-with time-varying demographic rates.
+We characterized the demography of the charr population 
+using an age-structured model \citep{caswell2001matrix}
+with time-varying demographic rates \citep{zeng1998, nielsen2014estimation}.
 The model projected the dynamics from one time step to the next as
 %
 \begin{equation} \label{eq:XPX}
@@ -75,8 +76,8 @@ The model projected the dynamics from one time step to the next as
 \end{equation}
 %
 where $\mathbf{P}_{t}$ is a demographic projection matrix
-and $\mathbf{x}_t$ is an age-structured vector of scaled population densities (see below)
-at time $t$.
+and $\mathbf{x}_t$ is an age-structured vector of scaled population densities 
+(see description of scaling below) at time $t$.
 %
 The projection matrix was defined as
 %
@@ -94,22 +95,22 @@ The projection matrix was defined as
 %
 where $\rho_{t}$ is per capita recruitment 
 and $\phi_{1,t}$ is the survival probability of age class $i$. 
-The model assumes that only individuals of age four or greater reproduce
-and allows adults return to the adult age class.
-%
+The model assumes that only age 4+ is reproductive age class 
+and that individuals that survive beyond age 4 return to the age 4+ class.
+
 Temporal variation in recruitment was modeled as a random walk on a log scale to ensure
 that the values remained positive:
 %
 \begin{equation} \label{eq:rho}
 \begin{aligned}
 \text{log}\left(\rho_t\right) &= \text{log}\left(\rho_{t - 1}\right) + \epsilon_{\rho,t} \\
-\epsilon_{\rho,t} &\sim \mathematical{N}\left(0, \sigma_{\rho} \right)
+\epsilon_{\rho,t} &\sim \text{Gaussian}\left(0, \sigma_{\rho} \right)
 \end{aligned}
 \end{equation}
 %
 where $\epsilon_{\rho,t}$ is the random walk step at time $t$.
-The steps of the random walk followed a Gaussian distribution with mean 0 
-and standard deviation $\epsilon_{\rho,t}$.
+The steps of the random walk followed a Gaussian distribution with mean of 0 
+and standard deviation (SD) of $\epsilon_{\rho,t}$.
 Temporal variation in survival probability for age class $i$ was modeled analogously 
 on a logit-scale:
 %
@@ -117,18 +118,22 @@ on a logit-scale:
 \begin{aligned}
 \text{logit}\left(\phi_{i, t}\right) &= \text{logit}\left(\phi_{i, t - 1}\right) +
                                           \epsilon_{\phi,i,t} \\
-\epsilon_{\phi,i,t} &\sim \mathematical{N}\left(0, \sigma_{\phi} \right)\text{.}
+\epsilon_{\phi,i,t} &\sim \text{Gaussian}\left(0, \sigma_{\phi} \right)\text{.}
 \end{aligned}
 \end{equation}
 %
+with the same random walk SD used for all age classes 
+to reduce the number of parameters fit by the model.
 Note that the ``random walks'' used to characterize the demographic parameters 
 do not necessarily possess the statistical properties 
 of true random walks (e.g., non-stationarity) 
 as they are constrained by the data during model fitting.
 Rather, they provided a convenient means 
 of allowing the parameters to vary smoothly through time.
+The random walk SDs for recruitment and survival 
+characterized the degree of temporal variation in the respective processes. 
 
-We parameterized the demographic model in a Bayesian framework, with likelihood
+We fit the model in a Bayesian framework, with likelihood
 %
 \begin{equation} \label{eq:likelihood}
 \mathcal{L} = 
@@ -142,32 +147,28 @@ We parameterized the demographic model in a Bayesian framework, with likelihood
 \end{equation}
 %
 where $y_{s,i,t}$ is the annual catch for station $s$ and age class $i$,
-$\kappa_i$ is the age-specific detection probability,
+$\kappa_i$ is the age-specific catch rate (constrained between 0 and 1),
 and $s=100$ is a scaling factor introduced to improve computationally efficiency
 by preventing exessively large values of $x_{i,t}$ 
 (such that $x_{i,t}$ itself is the population density scaled by $1/s$).
 The likelihood implies that the station-level abundance follows a Poisson distribution
 with a rate parameter equal to the lake-wide mean population density 
-scaled by the catch probability for the corresponding age class.
+scaled by the catch rate for the corresponding age class.
 We assumed that the lake-wide population was well mixed across years,
-and while we did not attempt to account for systematic differences between stations
+and while we did not attempt to account for systematic differences between stations;
 no such differences were apparent from visual inspection of the data 
-(see discussion of overdispersion below).
-Estimating a separate detection probability for each age class allowed the model to account
+(see discussion of potential overdispersion below).
+Estimating a separate catch rate for each age class allowed the model to account
 for systematic differences in catch rates as a function of age.
 Such differences are quite apparent in the data, 
-as far too few first year individuals are captured to account for the abundance subsequent
+as far too few first year individuals were captured to account for the abundance subsequent
 ages, assuming a closed population. 
-Our model is superficially similar to an N-mixture model, 
-however it does not include an explicit binomial detection process of discrete latent states.
-We opted for the simpler approach because we encountered substantial convergence problems
-when attempting to fit a ``proper'' N-mixture model to these data.
 We used exponential priors with rate 1/50 for the initial scaled population densities for
 each age class, 
-Gaussian priors with mean 0 and standard deviation of either 5 or 1 for 
+Gaussian priors with mean 0 and SD of either 5 or 1 for 
 initial log-recruitment or logit-survival (repsectively), 
-Gamma priors with shape and scale both of 1.5,
-and Beta priors with shape parameters both of 2 for the detection probability.
+Gamma priors with shape and scale both of 1.5 for the random walk SDs,
+and Beta priors with shape parameters both of 2 for the catch rate.
 Priors were selected to be weakly informative regarding overall scale, 
 while not acting strongly against the likelihood in the posterior fit.
 
@@ -177,34 +178,37 @@ with linear year effects.
 Recruitment and survival probabilities were fit on their corresponding link scales 
 (either log or logit),
 and survival probabilities were fit for each age class separately.
-We used a similar approach to calculate trends in the asymptotic population growth rate
-$\lambda_t$, caclulated as the leading eigenvalue of projection matrix $\mathbf{P}_{t}$.
+We used a similar approach to estimate trends in the asymptotic population growth rate
+(log scale), 
+caclulated as the leading eigenvalue of projection matrix $\mathbf{P}_{t}$.
 We performed this analysis on the asymptotic (as opposed to realized) growth rate 
 as we were principally interersted in the effects 
 of the underlying demographic rates per se; 
 the realized growth rate would also have included transient fluctuations due to
 non-equilibrium age structure.
-For all GLS models, the response variables and year were z-scored so that coefficients
+For all GLS models, the response variables and year were z-scored 
+(subtracted mean and divided by SD) so that coefficients
 could be interpreted as effects sizes;
 fitted values were then back-scaled for the figures.
 
-The demographic model was fit using the software Stan through the \texttt{rstan} package,
+The demographic model was fit using the statistical language Stan \citep{carpenter2017stan},
 with 4 chains, 3000 iterations, maximumum tree depth set to 13, and adapt delta set to 0.95.
 Convergence and quality of MCMC sampling were assessed using the diagnostics provided by Stan, 
 incuding Rhat, the number of divergences, and the effective sample size.
 We used posterior medians as point esitmates 
 and the bounds of 68\% posterior quantiles as uncertainty intervals 
 (hereafter $\text{UI}_{68\%}$), 
-matching the coverage of standard errors.
+matching the nominal coverage of standard errors.
 To gauge the degree to which the data were overdispersed relative 
 the the model expectations, 
 we simulated 90\% prediction intervals from equation \ref{eq:likelihood} 
 and compared the coverage of these intervals to the data.
-To assess the extent to which the data contained information regarding temporal variation 
-in the demographic rates,
+To assess the extent to which the data contained statistically meaningful information 
+regarding temporal variation in the demographic rates,
 we compared the fit of the full model to a reduced model with the demographic
 rates fixed through time.
-We performed GLS using the \texttt{gls} function from the \texttt{nlme} package 
-and calculated the asymptotic growth rate using the \texttt{demogR} package.
-All analysis were conducted in R 4.0.3. 
+We implemented the Stan model fitting with the \texttt{rstan} package \citep{stan2020rstan},
+performed GLS with the \texttt{gls} function from the \texttt{nlme} package \citep{pinheiro2020nlme}, 
+and calculated the asymptotic growth rate with the \texttt{demogR} package \citep{holland2007demogR}.
+All analysis were conducted in R 4.0.3 \citep{r2020}. 
 
