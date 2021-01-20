@@ -24,6 +24,8 @@ site_data <- read_csv("model/site_data.csv") %>%
 data_list <- read_rds(paste0("model/output/full/data_list.rds"))
 fit <- read_rds(paste0("model/output/full/fit.rds"))
 fit_sum <- read_csv(paste0("model/output/full/fit_sum.csv"))
+fit_reduced <- read_rds(paste0("model/output/fixed_all/fit.rds"))
+fit_sum_reduced <- read_csv(paste0("model/output/fixed_all/fit_sum.csv"))
 
 # set theme
 theme_set(theme_bw() %+replace%
@@ -46,6 +48,28 @@ year_limits <- c(1985, 2017)
 # stage colors
 stage_colors <- c("firebrick","dodgerblue","magenta4","goldenrod")
 names(stage_colors) <- c("first","second","third","adult")
+
+#=========================================================================================
+
+
+
+
+
+#=========================================================================================
+#========== Model comparison: log-likelihood
+#=========================================================================================
+
+# posterior log-likelihood
+fit_ll <- rstan::extract(fit, pars = "log_lik_sum") %>%
+  as_tibble() %>%
+  summarize(lo = quantile(log_lik_sum, probs = 0.16),
+            mi = median(log_lik_sum),
+            hi = quantile(log_lik_sum, probs = 0.85))
+fit_reduced_ll <- rstan::extract(fit_reduced, pars = "log_lik_sum") %>%
+  as_tibble() %>%
+  summarize(lo = quantile(log_lik_sum, probs = 0.16),
+            mi = median(log_lik_sum),
+            hi = quantile(log_lik_sum, probs = 0.85))
 
 #=========================================================================================
 
@@ -129,7 +153,8 @@ p_catch <- ggplot(data = x_pred,
   geom_jitter(data = site_data,
               aes(x = year,
                   y = count),
-              size = 0.3,
+              shape = 16,
+              size = 0.5,
               alpha = 0.5)+
   geom_line(size = 0.5)+
   scale_y_continuous("Survey catch",
@@ -273,10 +298,16 @@ ar_fit_fn <- function(stage_) {
   # extract relevant stage
   data_ = ls_fit %>% filter(stage == stage_)
   
+  # define values for z-scoring
+  mu_ = mean(data_$mi)
+  sd_ = sd(data_$mi)
+  
   # fit model
-  m_ = gls(mi ~ year,
-           corAR1(form = ~time),
-           data  = data_)
+  m_ = gls(z ~ time,
+           corAR1(form = ~ year),
+           data  = data_ %>% 
+             mutate(z = (mi - mu_) / sd_,
+                    time = (year - mean(year)) / sd(year)))
   
   # summarize
   sum_ = summary(m_)
@@ -285,15 +316,20 @@ ar_fit_fn <- function(stage_) {
   nd_ = data.frame(stage = stage_,
                    year = c(year = seq(min(data_$year), 
                                        max(data_$year),
-                                       length.out = 100)))
+                                       length.out = 100))) %>% 
+    mutate(time = (year - mean(year)) / sd(year))
   
   # fitted values
   fit_ = predictSE.gls(m_, newdata = nd_, print.matrix = T)
+  fit_ = cbind(nd_, fit_) %>%
+    as_tibble() %>%
+    mutate(mu = mu_,
+           sd = sd_)
   
   # return
   return(list(model = m_,
               summary = sum_,
-              fit = cbind(nd_, fit_)))
+              fit = fit_))
 }
 
 # apply function to stages
@@ -305,9 +341,11 @@ ar_fit <- lapply(c("first","second","third","adult"),
 lapply(ar_fit, function(x_){x_$summary})
 
 # fitted values
-ls_pred <- lapply(ar_fit, function(x_){as_tibble(x_$fit)}) %>% 
+ls_pred <- lapply(ar_fit, function(x_){x_$fit}) %>% 
   bind_rows() %>%
-  mutate(stage = factor(stage,
+  mutate(fit = sd * fit + mu,
+         se.fit = sd * fit + mu,
+         stage = factor(stage,
                         levels = c("first",
                                    "second",
                                    "third",
@@ -384,10 +422,16 @@ lr_fit <- fit_sum %>%
          year = sort(unique(data$year))[time]) 
 
 
+# define values for z-scoring
+mu_rec = mean(lr_fit$mi)
+sd_rec = sd(lr_fit$mi)
+
 # fit model
-rec_ar = gls(mi ~ year,
+rec_ar = gls(z ~ time,
              correlation = corAR1(form = ~year),
-             data  = lr_fit)
+             data  = lr_fit %>% 
+               mutate(z = (mi - mu_rec) / sd_rec,
+                      time = (year - mean(year)) / sd(year)))
 
 # summarize
 summary(rec_ar)
@@ -395,12 +439,15 @@ summary(rec_ar)
 # new data for prediction
 rec_nd = data.frame(year = c(year = seq(min(lr_fit$year), 
                                      max(lr_fit$year),
-                                     length.out = 100)))
+                                     length.out = 100))) %>% 
+  mutate(time = (year - mean(year)) / sd(year))
 
 # fitted values
 rec_pred = cbind(rec_nd,
                  predictSE.gls(rec_ar, newdata = rec_nd, print.matrix = T)) %>%
-  as_tibble() 
+  as_tibble() %>%
+  mutate(fit = sd_rec * fit + mu_rec,
+         se.fit = sd_rec * se.fit + mu_rec)
 
 # plot
 p_rec <- ggplot(data = lr_fit,
@@ -445,55 +492,58 @@ p_rec
 
 
 #=========================================================================================
-#========== Asymptotic growth ratee
+#========== Asymptotic growth rate
 #=========================================================================================
 
-# extract population density from MCMC (subset 2000)
-dem_pars <- {fit_sum %>%
-    filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
-           !str_detect(.$var, "ls\\["),
-           !str_detect(.$var, "zs\\["),
-           !str_detect(.$var, "lr\\["),
-           !str_detect(.$var, "zr\\["))}$var
-dem_full <- rstan::extract(fit, pars = dem_pars) %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(dem_pars) %>%
-  sample_n(2000) %>%
-  mutate(step = row_number()) %>%
-  gather(var, val, -step) %>%
-  mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
-         age = ifelse(name == "r",
-                      1,
-                      strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
-         time = ifelse(name == "r",
-                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
-         year = sort(unique(data$year))[time])
+# # extract population density from MCMC (subset 2000)
+# set.seed(1e3)
+# dem_pars <- {fit_sum %>%
+#     filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
+#            !str_detect(.$var, "ls\\["),
+#            !str_detect(.$var, "zs\\["),
+#            !str_detect(.$var, "lr\\["),
+#            !str_detect(.$var, "zr\\["))}$var
+# dem_full <- rstan::extract(fit, pars = dem_pars) %>%
+#   parallel::mclapply(as_tibble) %>%
+#   bind_cols() %>%
+#   set_names(dem_pars) %>%
+#   sample_n(2000) %>%
+#   mutate(step = row_number()) %>%
+#   gather(var, val, -step) %>%
+#   mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
+#          age = ifelse(name == "r",
+#                       1,
+#                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
+#          time = ifelse(name == "r",
+#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
+#          year = sort(unique(data$year))[time])
+# 
+# # define matrix of zeros for storing values
+# mat0 <- matrix(0, nrow = 4, ncol = 4)
+# 
+# # fill matrix and calculate asymptotic growth rate
+# lambda_full <- dem_full %>%
+#   split(.$step) %>%
+#   parallel::mclapply(function(x_){
+#     x_ %>% split(.$year) %>%
+#       lapply(function(xx_){
+#         v_ = xx_$val
+#         mat_ <- mat0
+#         mat_[1, 4] <- v_[1]
+#         mat_[2, 1] <- v_[2]
+#         mat_[3, 2] <- v_[3]
+#         mat_[4, 3] <- v_[4]
+#         mat_[4, 4] <- v_[5]
+#         lam_ = eigen.analysis(mat_)$lambda1
+#         return(tibble(year = unique(xx_$year),
+#                       lam = lam_))
+#       }) %>%
+#       bind_rows()
+#   }) %>% bind_rows() 
+# # write_csv(lambda_full, "analysis/lambda_full.csv")
 
-# define matrix of zeros for storing values
-mat0 <- matrix(0, nrow = 4, ncol = 4)
-
-# fill matrix and calculate asymptotic growth rate
-lambda_full <- dem_full %>%
-  split(.$step) %>%
-  parallel::mclapply(function(x_){
-    x_ %>% split(.$year) %>%
-      lapply(function(xx_){
-        v_ = xx_$val
-        mat_ <- mat0
-        mat_[1, 4] <- v_[1]
-        mat_[2, 1] <- v_[2]
-        mat_[3, 2] <- v_[3]
-        mat_[4, 3] <- v_[4]
-        mat_[4, 4] <- v_[5]
-        lam_ = eigen.analysis(mat_)$lambda1
-        return(tibble(year = unique(xx_$year),
-                      lam = lam_))
-      }) %>%
-      bind_rows()
-  }) %>% bind_rows() 
-# write_csv(lambda_full, "analysis/lambda_full.csv")
+# lambda_full <- read_csv("analysis/lambda_full.csv")
 
 # mean lambda
 lambda_full %>%
@@ -506,7 +556,7 @@ lambda_full %>%
             mi = quantile(lam, probs = c(0.5)),
             hi = quantile(lam, probs = c(0.84)))
 
-# lambda_full <- read_csv("analysis/lambda_full.csv")
+# summarize
 lambda <- lambda_full %>%
   group_by(year) %>%
   summarize(lo = quantile(lam, probs = c(0.16)),
@@ -514,10 +564,16 @@ lambda <- lambda_full %>%
             hi = quantile(lam, probs = c(0.84)))
 
 
+# define values for z-scoring
+mu_lam = mean(lambda$mi)
+sd_lam = sd(lambda$mi)
+
 # fit model
-lam_ar = gls(mi ~ year,
+lam_ar = gls(z ~ time,
              corAR1(form = ~year),
-             data  = lambda)
+             data  = lambda %>% 
+               mutate(z = (mi - mu_lam) / sd_lam,
+                      time = (year - mean(year)) / sd(year)))
 
 # summarize
 summary(lam_ar)
@@ -525,12 +581,15 @@ summary(lam_ar)
 # new data forr prediction
 lam_nd = data.frame(year = seq(min(lambda$year), 
                                max(lambda$year),
-                               length.out = 100))
+                               length.out = 100)) %>% 
+  mutate(time = (year - mean(year)) / sd(year))
 
 # fitted values
 lam_fit = cbind(lam_nd,
                 predictSE.gls(lam_ar, newdata = lam_nd, print.matrix = T)) %>%
-  as_tibble()
+  as_tibble() %>%
+  mutate(fit = sd_lam * fit + mu_lam,
+         se.fit = sd_lam * se.fit + mu_lam)
 
 
 # plot
@@ -572,6 +631,200 @@ p_lam
 # cairo_pdf(file = "analysis/p_lam.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_lam
+# dev.off()
+
+#=========================================================================================
+
+
+
+
+
+#=========================================================================================
+#========== Reduced model population estimates: compare with catch data
+#=========================================================================================
+
+# extract scaling parameter
+k <- data_list$k
+
+# extract detection probabilities
+detect_prob_reduced <- fit_sum_reduced %>%
+  filter(str_detect(.$var, "p\\[")) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("first",
+                                   "second",
+                                   "third",
+                                   "adult")))
+
+# extract population density from MCMC (subset 2000)
+x_pars <- {fit_sum_reduced %>%
+    filter(str_detect(.$var, "x\\["))}$var
+x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(x_pars) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
+         year = sort(unique(data$year))[time],
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("first",
+                                   "second",
+                                   "third",
+                                   "adult"))) 
+
+# simulate prediction interval and summarize 90%
+x_pred_reduced <- x_full_reduced %>%
+  group_by(stage, time) %>%
+  full_join(detect_prob_reduced %>%
+              select(stage, mi)) %>%
+  mutate(y_sim = rpois(n = length(val), k * mi * val)) %>%
+  group_by(stage, year) %>%
+  summarize(lo = quantile(y_sim, probs = c(0.05)),
+            mi = quantile(y_sim, probs = c(0.5)),
+            hi = quantile(y_sim, probs = c(0.95))) %>%
+  ungroup()
+
+# plot annotation
+labs <- x_full_reduced %>%
+  tidyr::expand(stage) %>%
+  mutate(x = mean(year_limits) + 1.5,
+         y = 130)
+
+# plot
+p_catch_reduced <- ggplot(data = x_pred_reduced,
+                  aes(x = year,
+                      y = mi,
+                      color = stage,
+                      fill = stage))+
+  facet_rep_wrap(~stage)+
+  geom_text(data = labs,
+            aes(label = stage,
+                x = x,
+                y = y),
+            color = "black",
+            size = 3.5,
+            inherit.aes = F)+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi),
+              alpha = 0.2,
+              linetype = 0)+
+  geom_jitter(data = site_data,
+              aes(x = year,
+                  y = count),
+              shape = 16,
+              size = 0.5,
+              alpha = 0.5)+
+  geom_line(size = 0.5)+
+  scale_y_continuous("Survey catch",
+                     trans = "log1p",
+                     breaks = c(0, 10, 100))+
+  scale_x_continuous("Year",
+                     breaks = year_breaks,
+                     limits = year_limits)+
+  scale_color_manual(values = stage_colors,
+                     guide = F)+
+  scale_fill_manual(values = stage_colors,
+                    guide = F)+
+  theme(panel.border = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))+
+  coord_capped_cart(left = "both", 
+                    bottom="both")
+p_catch_reduced
+
+# cairo_pdf(file = "analysis/p_catch_reduced.pdf",
+#           width = 3.5, height = 3, family = "Arial")
+# p_catch_reduced
+# dev.off()
+
+#=========================================================================================
+
+
+
+
+
+#=========================================================================================
+#========== Reduced population estimates: relative density
+#=========================================================================================
+
+# extract scaling parameter
+k <- data_list$k
+
+# extract density estimate
+x_fit_reduced <- fit_sum_reduced %>%
+  filter(str_detect(.$var, "x\\[")) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
+         year = sort(unique(data$year))[time],
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("first",
+                                   "second",
+                                   "third",
+                                   "adult"))) %>%
+  # scale by k
+  mutate(lo = k * lo,
+         mi = k * mi,
+         hi = k * hi) %>%
+  select(year, stage, lo, mi, hi)
+
+
+# plot annotation
+labs <- x_fit_reduced %>%
+  filter(year == 1986) %>%
+  mutate(x = 1986,
+         y = mi)
+
+# plot
+p_dens_reduced <- ggplot(data = x_fit_reduced,
+                 aes(x = year,
+                     y = mi,
+                     color = stage,
+                     fill = stage))+
+  geom_text(data = labs,
+            aes(label = stage,
+                x = x,
+                y = y,
+                color = stage),
+            size = 3.5,
+            inherit.aes = F,
+            nudge_x = -1.5)+
+  geom_line(size = 0.5)+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi),
+              alpha = 0.2,
+              linetype = 0)+
+  scale_y_continuous(Estimated~density~(`#`~station^{-1}),
+                     trans = "log",
+                     breaks = c(2, 20, 200),
+                     labels = c("2",  "20",  "200"),
+                     limits = c(1.9, 200))+
+  scale_x_continuous("Year",
+                     breaks = year_breaks,
+                     limits = c(min(year_limits) - 2,
+                                max(year_limits)))+
+  scale_color_manual(values = stage_colors,
+                     guide = F)+
+  scale_fill_manual(values = stage_colors,
+                    guide = F)+
+  theme(panel.border = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))+
+  coord_capped_cart(left = "both", 
+                    bottom="both")
+p_dens_reduced
+
+# cairo_pdf(file = "analysis/p_dens_reduced.pdf",
+#           width = 3.5, height = 3, family = "Arial")
+# p_dens_reduced
 # dev.off()
 
 #=========================================================================================
