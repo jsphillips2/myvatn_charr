@@ -89,8 +89,14 @@ fit_reduced_ll <- rstan::extract(fit_reduced, pars = "log_lik_sum") %>%
 k <- data_list$k
 
 # extract detection probabilities
-detect_prob <- fit_sum %>%
-  filter(str_detect(.$var, "p\\[")) %>%
+detect_prob_pars <- {fit_sum %>%
+  filter(str_detect(.$var, "p\\["))}$var
+detect_prob <- rstan::extract(fit, pars = detect_prob_pars) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(detect_prob_pars) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          stage = factor(age,
                         levels = c(1,2,3,4),
@@ -98,6 +104,12 @@ detect_prob <- fit_sum %>%
                                    "age 2",
                                    "age 3",
                                    "age 4+")))
+
+# extract theta
+# theta <- rstan::extract(fit, pars = "theta") %>%
+#   parallel::mclapply(as_tibble) %>%
+#   bind_cols() %>%
+#   mutate(step = row_number())
 
 # extract population density from MCMC (subset 2000)
 x_pars <- {fit_sum %>%
@@ -120,10 +132,11 @@ x_full <- rstan::extract(fit, pars = x_pars) %>%
 
 # simulate prediction interval and summarize 90%
 x_pred <- x_full %>%
-  group_by(stage, time) %>%
   full_join(detect_prob %>%
-              select(stage, mi)) %>%
-  mutate(y_sim = rpois(n = length(val), k * mi * val)) %>%
+              select(step, stage, val) %>%
+              rename(p = val)) %>%
+  group_by(stage, time) %>%
+  mutate(y_sim = rpois(n = length(val), k * p * val)) %>%
   group_by(stage, year) %>%
   summarize(lo = quantile(y_sim, probs = c(0.05)),
             mi = quantile(y_sim, probs = c(0.5)),
@@ -210,9 +223,6 @@ x_fit <- fit_sum %>%
                                    "age 2",
                                    "age 3",
                                    "age 4+"))) %>%
-  full_join(detect_prob %>% 
-              mutate(p = mi) %>%
-              select(p, stage)) %>%
   # scale by k
   mutate(lo = k * lo,
          mi = k * mi,
@@ -832,3 +842,109 @@ p_dens_reduced
 # dev.off()
 
 #=========================================================================================
+
+
+
+
+
+#=========================================================================================
+#========== Catch by site
+#=========================================================================================
+
+# plot annotation
+labs <- x_full %>%
+  tidyr::expand(stage) %>%
+  mutate(x = mean(year_limits) + 1.5,
+         y = 130)
+
+# plot
+p_sites <- ggplot(data = site_data,
+                  aes(x = year,
+                      y = count,
+                      color = factor(area + 1)))+
+  facet_rep_wrap(~stage)+
+  geom_text(data = labs,
+            aes(label = stage,
+                x = x,
+                y = y),
+            color = "black",
+            size = 3.5,
+            inherit.aes = F)+
+  geom_line(size = 0.3,
+            alpha = 0.75)+
+  scale_y_continuous("Survey catch",
+                     trans = "log1p",
+                     breaks = c(0, 10, 100))+
+  scale_x_continuous("Year",
+                     breaks = year_breaks,
+                     limits = year_limits)+
+  scale_fill_manual(values = stage_colors,
+                    guide = F)+
+  scale_color_viridis_d("")+
+  theme(legend.position = "top",
+        panel.border = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))+
+  coord_capped_cart(left = "both", 
+                    bottom="both")
+p_sites
+# cairo_pdf(file = "analysis/p_sites.pdf",
+#           width = 3.5, height = 4.5, family = "Arial")
+# p_sites
+# dev.off()
+
+#=========================================================================================
+
+
+
+
+
+#=========================================================================================
+#========== Catch by cohort
+#=========================================================================================
+
+# prepare cohort data
+# fill in missing ages with estimated age and drop June data
+cohorts <- data %>%
+  mutate(est_age = ifelse(is.na(age)==F, age, est_age)) %>%
+  filter(month != 6, is.na(est_age)==F)%>%
+  select(est_age, year) %>%
+  group_by(est_age, year) %>%
+  summarize(count = length(est_age)) %>%
+  ungroup() %>%
+  mutate(cohort = year - est_age,
+         cohort = cohort - min(cohort) + 1) %>%
+  group_by(cohort) %>%
+  {full_join(., expand(., cohort = min(cohort):max(cohort), est_age = min(est_age):max(est_age)))} %>%
+  mutate(
+    count = ifelse(is.na(count)==T | count == 0, 1L, count) 
+  ) %>%
+  ungroup()
+
+# plot
+p_cohort <- ggplot(data = cohorts,
+                   aes(x = est_age,
+                       y = count,
+                       group = cohort))+
+  geom_line(size = 0.3,
+            alpha = 0.75)+
+  scale_y_continuous("Catch by cohort",
+                     trans="log",
+                     breaks=c(1,10,100, 1000),
+                     limits = c(1, 1000))+
+  scale_x_continuous("Cohort age",
+                     breaks = c(1, 3, 5, 7, 9, 11))+
+  theme(panel.border = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))+
+  coord_capped_cart(left = "both", 
+                    bottom="both")
+p_cohort  
+# cairo_pdf(file = "analysis/p_cohort.pdf",
+#           width = 3.5, height = 2.5, family = "Arial")
+# p_cohort
+# dev.off()
