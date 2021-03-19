@@ -11,7 +11,7 @@ library(AICcmodavg)
 library(demogR)
 
 # import data 
-data <- read_csv("data/myvatn_char_clean.csv")
+data <- read_csv("data/myvatn_char_clean_1986_2020.csv")
 site_data <- read_csv("model/site_data.csv") %>%
   mutate(stage = factor(stage,
                         levels = c("first",
@@ -25,11 +25,11 @@ site_data <- read_csv("model/site_data.csv") %>%
 
 
 # import model fit
-data_list <- read_rds(paste0("model/output/full/data_list.rds"))
-fit <- read_rds(paste0("model/output/full/fit.rds"))
-fit_sum <- read_csv(paste0("model/output/full/fit_sum.csv"))
-fit_reduced <- read_rds(paste0("model/output/fixed_all/fit.rds"))
-fit_sum_reduced <- read_csv(paste0("model/output/fixed_all/fit_sum.csv"))
+data_list <- read_rds(paste0("model/output/full_zip/data_list.rds"))
+fit <- read_rds(paste0("model/output/full_zip/fit.rds"))
+fit_sum <- read_csv(paste0("model/output/full_zip/fit_sum.csv"))
+fit_reduced <- read_rds(paste0("model/output/fixed_all_zip/fit.rds"))
+fit_sum_reduced <- read_csv(paste0("model/output/fixed_all_zip/fit_sum.csv"))
 
 # set theme
 theme_set(theme_bw() %+replace%
@@ -46,8 +46,8 @@ theme_set(theme_bw() %+replace%
                   axis.ticks = element_line(size = 0.25)))
 
 # year breaks
-year_breaks <- c(1985, 2000, 2015)
-year_limits <- c(1985, 2017)
+year_breaks <- c(1990, 2005, 2020)
+year_limits <- c(1986, 2024)
 
 # stage colors
 stage_colors <- c("firebrick","dodgerblue","magenta4","goldenrod")
@@ -90,7 +90,7 @@ k <- data_list$k
 
 # extract detection probabilities
 detect_prob_pars <- {fit_sum %>%
-  filter(str_detect(.$var, "p\\["))}$var
+    filter(str_detect(.$var, "p\\["))}$var
 detect_prob <- rstan::extract(fit, pars = detect_prob_pars) %>%
   parallel::mclapply(as_tibble) %>%
   bind_cols() %>%
@@ -106,10 +106,10 @@ detect_prob <- rstan::extract(fit, pars = detect_prob_pars) %>%
                                    "age 4+")))
 
 # extract theta
-# theta <- rstan::extract(fit, pars = "theta") %>%
-#   parallel::mclapply(as_tibble) %>%
-#   bind_cols() %>%
-#   mutate(step = row_number())
+theta <- rstan::extract(fit, pars = "theta") %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  mutate(step = row_number())
 
 # extract population density from MCMC (subset 2000)
 x_pars <- {fit_sum %>%
@@ -135,8 +135,10 @@ x_pred <- x_full %>%
   full_join(detect_prob %>%
               select(step, stage, val) %>%
               rename(p = val)) %>%
-  group_by(stage, time) %>%
-  mutate(y_sim = rpois(n = length(val), k * p * val)) %>%
+  full_join(theta %>%
+              rename(theta = value)) %>%
+  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
+           rpois(n = length(val), k * p * val)) %>%
   group_by(stage, year) %>%
   summarize(lo = quantile(y_sim, probs = c(0.05)),
             mi = quantile(y_sim, probs = c(0.5)),
@@ -145,8 +147,8 @@ x_pred <- x_full %>%
 
 # plot annotation
 labs <- x_full %>%
-  tidyr::expand(stage) %>%
-  mutate(x = mean(year_limits) + 1.5,
+  tidyr::expand( stage) %>%
+  mutate(x = mean(year_limits),
          y = 130)
 
 # plot
@@ -185,7 +187,8 @@ p_catch <- ggplot(data = x_pred,
   scale_fill_manual(values = stage_colors,
                     guide = F)+
   theme(panel.border = element_blank(),
-        panel.spacing = unit(0, "lines"),
+        panel.spacing.x = unit(-1, "lines"),
+        panel.spacing.y = unit(0, "lines"),
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))+
@@ -193,7 +196,7 @@ p_catch <- ggplot(data = x_pred,
                     bottom="both")
 p_catch
 
-# cairo_pdf(file = "analysis/p_catch.pdf",
+# cairo_pdf(file = "analysis/figures/p_catch.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_catch
 # dev.off()
@@ -232,8 +235,8 @@ x_fit <- fit_sum %>%
 
 # plot annotation
 labs <- x_fit %>%
-  filter(year == 1986) %>%
-  mutate(x = 1986,
+  filter(year == 2020) %>%
+  mutate(x = 2020,
          y = mi)
 
 # plot
@@ -250,7 +253,7 @@ p_dens <- ggplot(data = x_fit,
             size = 3.5,
             inherit.aes = F,
             nudge_y = c(0, 0, 0, -3),
-            nudge_x = c(-2.6, -2.6, -2.6, 3.5))+
+            nudge_x = c(3, 3, 3, -11))+
   geom_line(size = 0.5)+
   geom_ribbon(aes(ymin = lo,
                   ymax = hi),
@@ -262,8 +265,7 @@ p_dens <- ggplot(data = x_fit,
                      labels = c("0.5",  "50",  "5000"))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
-                     limits = c(min(year_limits) - 2.6,
-                                max(year_limits)))+
+                     limits = year_limits)+
   scale_color_manual(values = stage_colors,
                      guide = F)+
   scale_fill_manual(values = stage_colors,
@@ -277,7 +279,7 @@ p_dens <- ggplot(data = x_fit,
                     bottom="both")
 p_dens
 
-# cairo_pdf(file = "analysis/p_dens.pdf",
+# cairo_pdf(file = "analysis/figures/p_dens.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_dens
 # dev.off()
@@ -413,7 +415,7 @@ p_surv <- ggplot(data = ls_fit,
                     bottom="both")
 p_surv
 
-# cairo_pdf(file = "analysis/p_surv.pdf",
+# cairo_pdf(file = "analysis/figures/p_surv.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_surv
 # dev.off()
@@ -494,7 +496,7 @@ p_rec <- ggplot(data = lr_fit,
                     bottom="both")
 p_rec
 
-# cairo_pdf(file = "analysis/p_rec.pdf",
+# cairo_pdf(file = "analysis/figures/p_rec.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_rec
 # dev.off()
@@ -555,7 +557,7 @@ p_rec
 #       }) %>%
 #       bind_rows()
 #   }) %>% bind_rows() 
-# # write_csv(lambda_full, "analysis/lambda_full.csv")
+# write_csv(lambda_full, "analysis/lambda_full.csv")
 
 # lambda_full <- read_csv("analysis/lambda_full.csv")
 
@@ -642,7 +644,7 @@ p_lam <- lambda %>%
                     bottom="both")
 p_lam
 
-# cairo_pdf(file = "analysis/p_lam.pdf",
+# cairo_pdf(file = "analysis/figures/p_lam.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_lam
 # dev.off()
@@ -661,8 +663,14 @@ p_lam
 k <- data_list$k
 
 # extract detection probabilities
-detect_prob_reduced <- fit_sum_reduced %>%
-  filter(str_detect(.$var, "p\\[")) %>%
+detect_prob_pars_reduced <- {fit_sum_reduced %>%
+    filter(str_detect(.$var, "p\\["))}$var
+detect_prob_reduced <- rstan::extract(fit, pars = detect_prob_pars_reduced) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(detect_prob_pars_reduced) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          stage = factor(age,
                         levels = c(1,2,3,4),
@@ -671,13 +679,19 @@ detect_prob_reduced <- fit_sum_reduced %>%
                                    "age 3",
                                    "age 4+")))
 
-# extract population density from MCMC (subset 2000)
-x_pars <- {fit_sum_reduced %>%
-    filter(str_detect(.$var, "x\\["))}$var
-x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars) %>%
+# extract theta
+theta_reduced <- rstan::extract(fit_reduced, pars = "theta") %>%
   parallel::mclapply(as_tibble) %>%
   bind_cols() %>%
-  set_names(x_pars) %>%
+  mutate(step = row_number())
+
+# extract population density from MCMC (subset 2000)
+x_pars_reduced <- {fit_sum_reduced %>%
+    filter(str_detect(.$var, "x\\["))}$var
+x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars_reduced) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(x_pars_reduced) %>%
   mutate(step = row_number()) %>%
   gather(var, val, -step) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
@@ -692,10 +706,13 @@ x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars) %>%
 
 # simulate prediction interval and summarize 90%
 x_pred_reduced <- x_full_reduced %>%
-  group_by(stage, time) %>%
   full_join(detect_prob_reduced %>%
-              select(stage, mi)) %>%
-  mutate(y_sim = rpois(n = length(val), k * mi * val)) %>%
+              select(step, stage, val) %>%
+              rename(p = val)) %>%
+  full_join(theta_reduced %>%
+              rename(theta = value)) %>%
+  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
+           rpois(n = length(val), k * p * val)) %>%
   group_by(stage, year) %>%
   summarize(lo = quantile(y_sim, probs = c(0.05)),
             mi = quantile(y_sim, probs = c(0.5)),
@@ -704,8 +721,8 @@ x_pred_reduced <- x_full_reduced %>%
 
 # plot annotation
 labs <- x_full_reduced %>%
-  tidyr::expand(stage) %>%
-  mutate(x = mean(year_limits) + 1.5,
+  tidyr::expand( stage) %>%
+  mutate(x = mean(year_limits),
          y = 130)
 
 # plot
@@ -744,7 +761,8 @@ p_catch_reduced <- ggplot(data = x_pred_reduced,
   scale_fill_manual(values = stage_colors,
                     guide = F)+
   theme(panel.border = element_blank(),
-        panel.spacing = unit(0, "lines"),
+        panel.spacing.x = unit(-1, "lines"),
+        panel.spacing.y = unit(0, "lines"),
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))+
@@ -752,7 +770,7 @@ p_catch_reduced <- ggplot(data = x_pred_reduced,
                     bottom="both")
 p_catch_reduced
 
-# cairo_pdf(file = "analysis/p_catch_reduced.pdf",
+# cairo_pdf(file = "analysis/figures/p_catch_reduced.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_catch_reduced
 # dev.off()
@@ -791,8 +809,8 @@ x_fit_reduced <- fit_sum_reduced %>%
 
 # plot annotation
 labs <- x_fit_reduced %>%
-  filter(year == 1986) %>%
-  mutate(x = 1986,
+  filter(year == 2020) %>%
+  mutate(x = 2020,
          y = mi)
 
 # plot
@@ -808,7 +826,8 @@ p_dens_reduced <- ggplot(data = x_fit_reduced,
                 color = stage),
             size = 3.5,
             inherit.aes = F,
-            nudge_x = c(-3.2, -3.2, -3.2, -2.8))+
+            nudge_y = c(0, 0, 0, 0),
+            nudge_x = c(3.1, 3.1, 3.1, 3.6))+
   geom_line(size = 0.5)+
   geom_ribbon(aes(ymin = lo,
                   ymax = hi),
@@ -816,13 +835,11 @@ p_dens_reduced <- ggplot(data = x_fit_reduced,
               linetype = 0)+
   scale_y_continuous(Estimated~density~(`#`~station^{-1}),
                      trans = "log",
-                     breaks = c(2, 20, 200),
-                     labels = c("2",  "20",  "200"),
-                     limits = c(1.9, 200))+
+                     breaks = c(3, 30, 300),
+                     limits = c(3.5,300))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
-                     limits = c(min(year_limits) - 3.2,
-                                max(year_limits)))+
+                     limits = year_limits + c(0, 1))+
   scale_color_manual(values = stage_colors,
                      guide = F)+
   scale_fill_manual(values = stage_colors,
@@ -836,7 +853,7 @@ p_dens_reduced <- ggplot(data = x_fit_reduced,
                     bottom="both")
 p_dens_reduced
 
-# cairo_pdf(file = "analysis/p_dens_reduced.pdf",
+# cairo_pdf(file = "analysis/figures/p_dens_reduced.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_dens_reduced
 # dev.off()
@@ -890,7 +907,7 @@ p_sites <- ggplot(data = site_data,
   coord_capped_cart(left = "both", 
                     bottom="both")
 p_sites
-# cairo_pdf(file = "analysis/p_sites.pdf",
+# cairo_pdf(file = "analysis/figures/p_sites.pdf",
 #           width = 3.5, height = 4.5, family = "Arial")
 # p_sites
 # dev.off()
@@ -944,7 +961,7 @@ p_cohort <- ggplot(data = cohorts,
   coord_capped_cart(left = "both", 
                     bottom="both")
 p_cohort  
-# cairo_pdf(file = "analysis/p_cohort.pdf",
+# cairo_pdf(file = "analysis/figures/p_cohort.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_cohort
 # dev.off()

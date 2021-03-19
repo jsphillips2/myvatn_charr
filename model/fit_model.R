@@ -11,7 +11,7 @@ rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores()-2)
 
 # import data
-data<-read_csv("data/myvatn_char_clean.csv")
+data<-read_csv("data/myvatn_char_clean_1986_2020.csv")
 
 # set theme
 theme_set(theme_bw() %+replace% 
@@ -34,8 +34,7 @@ theme_set(theme_bw() %+replace%
 
 clean_data <-  data %>%
   #Fill gaps in "Est.age"
-  mutate(est_age = ifelse(is.na(age)==F, age, est_age)
-  ) %>%
+  mutate(est_age = ifelse(is.na(age)==F, age, est_age)) %>%
   #Remove June data & samples without ages
   filter(month != 6, is.na(est_age)==F) %>%
   #Define Stage
@@ -71,7 +70,7 @@ ggplot(data = site_data,
   geom_line(data = site_data %>% group_by(stage, year) %>% 
               summarize(count = mean(count,na.rm=T)),
             size = 0.9)+
-  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_x_continuous("Year", limits=c(1986,2020))+
   scale_y_continuous("Abundance by site",trans="log1p",breaks=c(1,10,100))
   
 # define indices 
@@ -85,11 +84,40 @@ y <- array({site_data %>% arrange(year, area, stage)}$count,
                    n_sites,
                    n_years))
 
+# arrange values for each stage x year combination in descending order
+# n_zero <- matrix(0, nrow = n_stages, ncol = n_years)
+# n_nonzero <- matrix(0, nrow = n_stages, ncol = n_years)
+# for (t in 1 : n_years) {
+#   for (i in 1 : n_stages) {
+#     y[i, , t] = sort(y[i, ,t], decreasing = T)
+#     n_zero[i, t] = length(y[i, ,t][y[i, ,t] == 0])
+#     n_nonzero[i, t] = length(y[i, ,t][y[i, ,t] > 0])
+#   }
+# }
+
 # check
 plot(colSums(y[1,,]) /n_sites , type = "l")
 plot(colSums(y[2,,]) /n_sites , type = "l")
 plot(colSums(y[3,,]) /n_sites , type = "l")
 plot(colSums(y[4,,]) /n_sites , type = "l")
+
+plot(count ~ year, 
+     type = "l",
+     data = 
+       site_data %>% filter(stage == "first") %>% group_by(year) %>% summarize(count = sum(count)))
+plot(count ~ year, 
+     type = "l",
+     data = 
+       site_data %>% filter(stage == "second") %>% group_by(year) %>% summarize(count = sum(count)))
+plot(count ~ year, 
+     type = "l",
+     data = 
+       site_data %>% filter(stage == "third") %>% group_by(year) %>% summarize(count = sum(count)))
+plot(count ~ year, 
+     type = "l",
+     data = 
+       site_data %>% filter(stage == "adult") %>% group_by(year) %>% summarize(count = sum(count)))
+
 
 # priors
 xp <- matrix(c(20,       20,
@@ -105,7 +133,7 @@ xp <- matrix(c(20,       20,
 k <- 100
 
 # time varying rates indicator
-tvr <- c(1, 1)
+tvr <- c(0, 0)
 
 # package data
 data_list <- list(n_stages = n_stages,
@@ -127,13 +155,13 @@ data_list <- list(n_stages = n_stages,
 # chains <- 1
 # iter <- 100
 # adapt_delta <- 0.8
-# max_treedepth <- 13
+# max_treedepth <- 14
 
 # MCMC specifications
 # chains <- 4
-# iter <- 3000
+# iter <- 2000
 # adapt_delta <- 0.95
-# max_treedepth <- 13
+# max_treedepth <- 14
 
 # # fit model
 # start_time <- Sys.time()
@@ -179,6 +207,9 @@ data_list <- list(n_stages = n_stages,
 #             if (tvr[1] == 1 && tvr[2] == 0) {"fixed_s"} else {"fixed_all"}}}
 # fit <- read_rds(paste0("model/output/",name,"/fit.rds"))
 # fit_sum <- read_csv(paste0("model/output/",name,"/fit_sum.csv"))
+
+# fit <- read_rds(paste0("model/output/full/fit.rds"))
+# fit_sum <- read_csv(paste0("model/output/full/fit_sum.csv"))
 
 x_fit <- fit_sum %>%
   filter(str_detect(.$var, "x\\[")) %>%
@@ -261,64 +292,20 @@ ggplot(data = site_data ,
                   x = year),
               inherit.aes = F,
               alpha = 0.2)+
-  scale_x_continuous("Year", limits=c(1986,2017))+
+  scale_x_continuous("Year", limits=c(1986,2020))+
   scale_y_continuous(trans = "log1p")
 
 fit_sum %>%
   filter(str_detect(.$var, "slr"))
 
 fit_sum %>%
-  filter(str_detect(.$var, "p"))
+  filter(str_detect(.$var, "sls"))
 
+fit_sum %>%
+  filter(str_detect(.$var, "p"),!str_detect(.$var, "lp"))
 
 fit_sum %>%
   filter(str_detect(.$var, "ls0"))
 
 x_pars <- {fit_sum %>%
   filter(str_detect(.$var, "x\\["))}$var
-
-x_full <- rstan::extract(fit, pars = x_pars) %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(x_pars) %>%
-  sample_n(2000) %>%
-  mutate(step = row_number()) %>%
-  gather(var, val, -step) %>%
-  mutate(stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))) 
-
-
-y_sim_full <- x_full %>%
-  mutate(y_sim = rpois(n = length(val), val)) %>%
-  group_by(stage, time) %>%
-  full_join(fit_sum %>%
-              filter(str_detect(.$var, "p\\[")) %>%
-              mutate(stage = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])))%>%
-              select(stage, mi)) %>%
-  mutate(y_sim = k * mi * val)
-  
-y_sim_sum <- y_sim_full %>%  
-  group_by(stage, time) %>%
-  summarize(lo = quantile(y_sim, probs = c(0.005)),
-            mi = quantile(y_sim, probs = c(0.5)),
-            hi = quantile(y_sim, probs = c(0.975))) %>%
-  ungroup() %>%
-  mutate(stage = factor(levels(site_data$stage)[stage]))
-
-ggplot(data = site_data ,
-       aes(year, count))+
-  facet_wrap(~stage, scale = "free_y")+
-  geom_ribbon(data = y_sim_sum,
-            aes(ymin = lo,
-                ymax = hi,
-                x = time + 1985),
-            alpha = 0.3,
-            inherit.aes = F)+
-  geom_line(data = y_sim_sum,
-            aes(y = mi,
-                x = time + 1985))+
-  geom_line(aes(group = area), size = 0.3, alpha = 0.5)+
-  scale_x_continuous("Year", limits=c(1986,2017))+
-  scale_y_continuous(trans = "log1p")
-
-
