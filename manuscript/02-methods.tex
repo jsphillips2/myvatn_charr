@@ -41,12 +41,12 @@ the charr in M\'{y}vatn appear to lack cannibalism.
 % ---------------------------------------------------------------------------------------
 
 Systematic surveys of M\'{y}vatn’s Arctic charr have been conducted 
-with gill nets every year from 1986-2017 by a single researcher (G. Gu{\dh}bergsson) 
+with gill nets every year from 1986-2020 by a single researcher (G. Gu{\dh}bergsson) 
 using a consistent methodology. 
 The surveys largely took place after the period of most dramatic population decline 
 \citep{gudbergsson2004} 
 and were intended to monitor the recovery of the population following its collapse. 
-Twelve survey stations were sampled from around the lake,
+Eleven survey stations were sampled from around the lake,
 most of which were located in the south basin. 
 Captured individuals were aged either by otoliths directly or 
 with an estimate based on length.
@@ -133,22 +133,30 @@ of allowing the parameters to vary smoothly through time.
 The random walk SDs for recruitment and survival 
 characterized the degree of temporal variation in the respective processes. 
 
-We fit the model in a Bayesian framework, with likelihood
+We fit the model in a Bayesian framework with a zero-inflated Poisson likelihood:
 %
 \begin{equation} \label{eq:likelihood}
 \mathcal{L} = 
 \displaystyle\prod_{s}
 \displaystyle\prod_{i}
 \displaystyle\prod_{t}
-\text{Poisson}
-    \left(
-        y_{s,i,t}~|~\kappa_i~\times~s~\times~x_{i,t}
-    \right)
+\[ \begin{cases} 
+      \theta + (1-\theta) \times \text{Poisson}
+        \left(
+            0~|~\kappa_i~\times~s~\times~x_{i,t}
+        \right) & \text{if}~y_{s,i,t} = 0 \\
+      (1-\theta) \times \text{Poisson}
+        \left(
+            y_{s,i,t}~|~\kappa_i~\times~s~\times~x_{i,t}
+        \right) & \text{if}~y_{s,i,t} > 0
+   \end{cases}
+\]
 \end{equation}
 %
 where $y_{s,i,t}$ is the annual catch for station $s$ and age class $i$,
 $\kappa_i$ is the age-specific catch rate (constrained between 0 and 1),
-and $s=100$ is a scaling factor introduced to improve computationally efficiency
+$\theta$ is the probability of a zero from a Bernoulli sampling processes, and
+$s=100$ is a scaling factor introduced to improve computationally efficiency
 by preventing exessively large values of $x_{i,t}$ 
 (such that $x_{i,t}$ itself is the population density scaled by $1/s$).
 The likelihood implies that the station-level abundance follows a Poisson distribution

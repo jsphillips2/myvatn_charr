@@ -153,12 +153,13 @@ matching the nominal coverage of standard errors.
 \toprule
 Model parameter        &                         & Posterior median [\text{UI}_{68\%}] \\
 \cmidrule{1-3}
-catch rate             & age 1                   & 0.001 [0.0006, 0.002]               \\
-&                        age 2                   & 0.08 [0.05, 0.13]                   \\
-&                        age 3                   & 0.48 [0.32, 0.67]                   \\
-&                        age 4+                  & 0.66 [0.48, 0.83]                   \\
-random walk SD         & survival probability    & 2.03 [1.79, 2.30]                   \\
-&                        recruitment capita^{-1} & 1.45 [1.25, 1.70]                   \\
+catch rate             & age 1                   & 0.003 [0.001, 0.005]                \\
+&                        age 2                   & 0.13 [0.08, 0.19]                   \\
+&                        age 3                   & 0.47 [0.30, 0.66]                   \\
+&                        age 4+                  & 0.66 [0.46, 0.83]                   \\
+zero-inflation rate    &                         & 0.34 [0.32, 0.35]                   \\
+random walk SD         & survival probability    & 1.94 [1.71, 2.23]                   \\
+&                        recruitment capita^{-1} & 1.45 [1.25, 1.68]                   \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -188,12 +189,12 @@ and statistical non-stationarity.
 Response variable       &        & Intercept (\pm~\text{SE}) & Year slope (\pm~\text{SE}) & AR
                                                                                  coefficient \\
 \cmidrule{1-5}
-survival probability    & age 1  & ~0.01  \pm~0.23           & ~0.26 \pm~0.23        & ~0.26 \\
-&                         age 2  & ~0.00  \pm~0.15           & ~0.13 \pm~0.15        & -0.18 \\
-&                         age 3  & ~0.04  \pm~0.54           & ~0.25 \pm~0.44        & ~0.80 \\
-&                         age 4+ & -0.02 \pm~0.26            & ~0.55 \pm~0.25        & ~0.53 \\
-recruitment capita^{-1} &        & -0.06 \pm~0.29            & -0.71 \pm~0.27        & ~0.56 \\
-population growth rate  &        & ~0.00  \pm~0.15           & ~0.08 \pm~0.15        & -0.21 \\
+survival probability    & age 1  & ~0.00  \pm~0.27           & ~0.15 \pm~0.26        & ~0.41 \\
+&                         age 2  & -0.01  \pm~0.15           & ~0.27 \pm~0.16        & -0.10 \\
+&                         age 3  & ~0.01  \pm~0.53           & ~0.19 \pm~0.43        & ~0.80 \\
+&                         age 4+ &  0.04  \pm~0.25           & ~0.57 \pm~0.24        & ~0.49 \\
+recruitment capita^{-1} &        & ~0.05  \pm~0.26           & -0.39 \pm~0.25        & ~0.45 \\
+population growth rate  &        & -0.02  \pm~0.13           & ~0.18 \pm~0.13        & -0.27 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -205,7 +206,7 @@ population growth rate  &        & ~0.00  \pm~0.15           & ~0.08 \pm~0.15   
 \clearpage
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_catch.pdf}
+\includegraphics{../analysis/figures/p_catch.pdf}
 \caption{\label{fig:p_catch}
 Station-level catch (points) and 90\% posterior prediction intervals (shading) 
 from the demographic model.
@@ -224,7 +225,7 @@ The y-axis is log+1 transformed to accommodate zeros.
 \clearpage
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_dens.pdf}
+\includegraphics{../analysis/figures/p_dens.pdf}
 \caption{\label{fig:p_dens}
 Average population density across stations (solid line) 
 inferred from the demographic model.
@@ -240,7 +241,7 @@ The y-axis is log transformed.
 \clearpage
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_lam.pdf}
+\includegraphics{../analysis/figures/p_lam.pdf}
 \caption{\label{fig:p_lam}
 Asymptotic population growth rate (solid blue line) inferred from the demographic model.
 Shading depicts 68\% uncertainty intervals, 
@@ -261,7 +262,7 @@ thereby preserving the linearity of the data and model fit.
 \clearpage
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_surv.pdf}
+\includegraphics{../analysis/figures/p_surv.pdf}
 \caption{\label{fig:p_surv}
 Logit-survival probability (solid colored lines) inferred from the demographic model.
 Shading depicts 68\% uncertainty intervals, 
@@ -279,7 +280,7 @@ corresponds to actual survival probability ranging from 0.007 to 0.993.
 \clearpage
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_rec.pdf}
+\includegraphics{../analysis/figures/p_rec.pdf}
 \caption{\label{fig:p_rec}
 Log-recruitment $\text{capita}^{-1}$ (solid blue line) inferred from the demographic model.
 Shading depicts 68\% uncertainty intervals, 
@@ -313,7 +314,7 @@ corresponds to actual log-recruitment $\text{capita}^{-1}$ ranging from 0.4 to 3
 % ---------------------------------------------------------------------------------------
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_cohort.pdf}
+\includegraphics{../analysis/figures/p_cohort.pdf}
 \caption{\label{fig:p_cohort}
 Survey catch as a function of age, with each line corresponding to a unique cohort.
 }
@@ -324,7 +325,7 @@ Survey catch as a function of age, with each line corresponding to a unique coho
 % ---------------------------------------------------------------------------------------
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_sites.pdf}
+\includegraphics{../analysis/figures/p_sites.pdf}
 \caption{\label{fig:p_sites}
 Station-level catch through time, with stations shown in different colors.
 }
@@ -335,7 +336,7 @@ Station-level catch through time, with stations shown in different colors.
 % ---------------------------------------------------------------------------------------
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_catch_reduced.pdf}
+\includegraphics{../analysis/figures/p_catch_reduced.pdf}
 \caption{\label{fig:p_catch_reduced}
 Station-level catch (points) and 90\% posterior prediction intervals (shading) 
 from the reduced version of the demographic model 
@@ -355,7 +356,7 @@ The y-axis is log+1 transformed to accommodate zeros.
 \clearpage
 \begin{figure}
 \centering
-\includegraphics{../analysis/p_dens_reduced.pdf}
+\includegraphics{../analysis/figures/p_dens_reduced.pdf}
 \caption{\label{fig:p_dens_reduced}
 Average population density across stations (solid line)
 inferred from the reduced version of the demographic model 
