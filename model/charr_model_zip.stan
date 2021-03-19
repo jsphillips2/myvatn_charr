@@ -7,6 +7,7 @@
 
 
 
+
 //=======================================================================================
 
 data {
@@ -19,7 +20,8 @@ data {
   real xp[7, 2];                                      // values for prior parameterization
   int<lower=0, upper=1> tvr[2];                    // binary for time-varying rates 
   real k;                                          // scaling for population density 
-  
+  int n_zero[n_stages, n_years];
+  int n_nonzero[n_stages, n_years];
 }
 
 //=======================================================================================
@@ -157,18 +159,12 @@ model {
   
   // likelihood
   for (t in 1 : n_years) {
-    for (i in 1:n_stages) {
-      for(j in 1:n_sites){
-        if (y[i, j ,t] == 0) {
-          target += log_sum_exp(bernoulli_lpmf(1 | theta),
-                            bernoulli_lpmf(0 | theta)
-                              + poisson_lpmf(y[i, j ,t] | k * p[i] * x[i, t]));
-        }
-        else {
-          target += bernoulli_lpmf(0 | theta)
-                        + poisson_lpmf(y[i, j ,t] | k * p[i] * x[i, t]);
-        }
-      }
+    for (i in 1 : n_stages) {
+      target += n_zero[i, t] * log_sum_exp(bernoulli_lpmf(1 | theta),
+                                  bernoulli_lpmf(0 | theta) + 
+                                    poisson_lpmf(0 | k * p[i] * x[i, t]));
+      target += n_nonzero[i, t] * bernoulli_lpmf(0 | theta);
+      target += poisson_lpmf(y[i, 1 : n_nonzero[i, t] ,t] | k * p[i] * x[i, t]);
     }
   }
   
@@ -177,36 +173,30 @@ model {
 //=======================================================================================
 
 generated quantities {
-  
+
   // declare variables
-  real log_lik [n_stages * n_sites * n_years];     // pointwise log-likelihood
+  real log_lik [n_stages * n_years];               // stage x year log-likelihood
   real log_lik_sum;                                // total log-likelihood
-  
-  // pointwise log-likelihood
+
+  // log-likelihood by stage x year
   {
     int pos = 1;
     for (t in 1 : n_years) {
-      for (j in 1 : n_sites) {
-        for (i in 1 : n_stages) {
-          if (y[i, j ,t] == 0) {
-            log_lik[pos] = log_sum_exp(bernoulli_lpmf(1 | theta),
-                              bernoulli_lpmf(0 | theta)
-                                + poisson_lpmf(y[i, j ,t] | k * p[i] * x[i, t]));
-          }
-          else {
-            log_lik[pos] = bernoulli_lpmf(0 | theta)
-                          + poisson_lpmf(y[i, j ,t] | k * p[i] * x[i, t]);
-          }
-          pos += 1;
-        }
+      for (i in 1 : n_stages) {
+        log_lik[pos] = n_zero[i, t] * log_sum_exp(bernoulli_lpmf(1 | theta),
+                                  bernoulli_lpmf(0 | theta) +
+                                    poisson_lpmf(0 | k * p[i] * x[i, t])) +
+                                     n_nonzero[i, t] * bernoulli_lpmf(0 | theta) +
+                                      poisson_lpmf(y[i, 1 : n_nonzero[i, t] ,t] | 
+                                                    k * p[i] * x[i, t]);
+        pos += 1;
       }
     }
   }
-  
+
   // total log-likelihood
   log_lik_sum = sum(log_lik);
-  
-}
 
+}
 
 //=======================================================================================
