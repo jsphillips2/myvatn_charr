@@ -4,11 +4,11 @@
 
 # load packages
 library(tidyverse)
+library(lubridate)
 
 # import data
-survey = read_csv("data/raw_data/myvatn_char.csv")
-catch = read_csv("data/raw_data/myvatn_catch.csv")
-
+survey_8617 <- read_csv("data/raw_data/myvatn_char_1986_2017.csv")
+survey_1820 <- read_csv("data/raw_data/myvatn_char_2018_2020.csv")
 
 
 
@@ -20,8 +20,9 @@ catch = read_csv("data/raw_data/myvatn_catch.csv")
 # clean data
 # replace year of 0 with 2002 (probably a mistake in the data)
 # only keep fall surveys
-survey_clean = survey %>%
-  rename(number = NR, year = AR, month = TIMI, area_1 = ST, area_2 = STOD, length = LENGD, mass = TYNGD, 
+clean_8617 <- survey_8617 %>%
+  rename(number = NR, year = AR, month = TIMI, area_1 = ST, area_2 = STOD, 
+         length = LENGD, mass = TYNGD, 
          sex = KYN, maturity = KTR, age = ALD, est_age = ALDUR) %>%
   select(number, year, month, area_1, area_2, length, mass, sex, maturity, age, est_age) %>%
   mutate(sex = ifelse(sex == 0, NA, sex),
@@ -29,35 +30,18 @@ survey_clean = survey %>%
          est_age = ifelse(est_age == 0, NA, est_age),
          year = ifelse(year == 0, 2002, year)) 
 
-# export
-# write_csv(survey_clean, "data/myvatn_char_clean.csv")
+clean_1820 <- survey_1820 %>%
+  mutate(year = year(DAGS),
+         month = month(DAGS)) %>%
+  rename(number = NR, area_1 = ST, 
+         length = LENGD, mass = TYNGD, 
+         sex = KYN, maturity = KTR, age = ALD,) %>%
+  select(number, year, month, area_1,length, mass, sex, maturity, age) %>%
+  mutate(sex = ifelse(sex == 0, NA, sex),
+         age = ifelse(age == 0, NA, age),
+         year = ifelse(year == 0, 2002, year)) 
 
-
-
-
-
-#==========
-#========== Harvest data
-#==========
-
-# rename variables
-# replace numeric indeces with strings
-catch_clean = catch %>%
-  rename(farm = NUMER, method = VEID, season = TIMI, year = ÁR, month = MAN, 
-         day = DAG, week = VIKA, location = STADUR, basin = FLOI, net_nights = LAGNIR, 
-         char = BLEIKJA, trout = URRIÐI, filter = FILTER__) %>%
-  mutate(method = ifelse(method == 1, "net", "hook"),
-         season = ifelse(season == 1, "winter", "summer")) %>%
-  select(-VAR00001,-X15)
+clean_8620 <- bind_rows(clean_8617, clean_1820) 
 
 # export
-# write_csv(catch_clean, "data/myvatn_catch_clean.csv")
-
-
-
-
-
-
-
-
-
+# write_csv(clean_8620, "data/myvatn_char_clean_1986_2020.csv")
