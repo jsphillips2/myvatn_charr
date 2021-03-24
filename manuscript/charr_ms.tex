@@ -84,7 +84,22 @@ Running head: {Arctic charr demography}
 % ---------------------------------------------------------------------------------------
 % ---------------------------------------------------------------------------------------
 
-\input{00-abstract}
+\section*{Abstract} \label{abstract}
+
+Quantifying temporal variation in demographic rates is a central goal of population ecology,
+in both basic and applied settings.
+In this study, we analysed a multidecadal age-structured time series 
+of arctic charr (\emph{Salvelinus alpinus}) catch  in Lake M\'{y}vatn, Iceland, 
+to infer the time-varying demographic response of the population 
+to reduced harvest in the wake of the fishery's collapse.
+Our analysis shows that while survival probability of adults increased following the alleviation
+of harvesting pressure, per recruitment consistent declined over the entire study period.
+The countervailing demographic trends resulted 
+in no directional change in the total population size or population growth rate.
+Rather, the population dynamics were dominated by large interannual variability
+and a shift towards a relatively older age distribution.
+These results are indicative of a slow recovery of the population following its collapse,
+despite the rising number of adults due to relaxed harvest.
 
 \bigskip
 
@@ -96,17 +111,468 @@ Running head: {Arctic charr demography}
 
 % ---------------------------------------------------------------------------------------
 % ---------------------------------------------------------------------------------------
-% Main text
+% Introduction
 % ---------------------------------------------------------------------------------------
 % ---------------------------------------------------------------------------------------
 
-\input{01-intro}
+\section*{Introduction}
 
-\input{02-methods}
+Quantifying temporal variation in demographic rates is a central goal of population ecology,
+as this underpins efforts to characterize both exogenous and endogenous drivers of population dynamics 
+\citep{twombly1994comparative, zeng1998, koons2016life}.
+However, this endeavor is challenging, 
+as even the characterization of directional trends in demographic rates requires
+data spanning many years and 
+often relies on intensive mark-recpature (and related) approaches for statistical inference
+\citep[e.g.,][]{forcada2008life, hunter2010climate}.
+Both of these challenges are amplified in populations subject to large interannual variation
+in demographic rates, 
+which are often the targets of both basic and applied interest
+\citep[e.g.,][]{white2007irruptive}.
+Consequently, 
+there is a need for addtional studies that 
+explict quantify temporal variation in demographic rates 
+and the resulting population dynamics, 
+particularly for populations that have not been the subjects 
+of intensive mark-recpature-style campaigns.
 
-\input{03-results}
+In this study, we analysed a multidecadal age-structured time series 
+of arctic charr (\emph{Salvelinus alpinus}) catch  in Lake M\'{y}vatn, Iceland, 
+to infer the time-varying demographic response of the population 
+to reduced harvest in the wake of the fishery's collapse.
+Arctic charr are salmonids with a circumpolar distribution
+and are basis of numerous commerical fisheries \citep{klemetsen2003atlantic}.
+Moreover,
+arctic charr have important effects in many artic 
+and boreal freshwater foodwebs owing to their roles as top consumers
+\citep{jeppesen2001fish, klemetsen2003atlantic}.
+In M\'{y}vatn, the charr sustained a large commerical fishery throughout much of the 
+twentieth century that was subject to exploitation rates upwards of 80\%,
+resulting in the fishery's collapse by the late 1980s \citep{gudbergsson2004}.
+A monitoring program was instituted in 1986 to monitor the population's
+response to declining harvesting pressure over the next few decades,
+including catch restrictions imposed in the early 2000s.
 
-\input{04-discussion}
+Using these monitoring data, 
+we parameterized an age-structured demographic model with time-varying recruitment and survival 
+to charactreize the dynamics of the population.
+We modeled temporal variation in the demgoraphic rates as random walks, 
+an approach that had previously been applied 
+to infer population growth rates from non-structured abundance 
+\citep{zeng1998}
+and for age-specific mortality rates inferred from fisheries stock assessments 
+\citep{nielsen2014estimation}. 
+This method takes advantage of the entire time series for estimating the parameters 
+while allowing them to vary smoothly through time. 
+Furthermore, the model is able to characterize a range of dynamics including those
+arising from negative density-dependence and environmental perturbations.
+The latter may be particularly important in the case of the M\'{y}vatn's charr,
+as the lake is subject to large fluctuations in primary and secondary production
+that may cascade up to the charr population 
+\citep{einarsson2004myvatn, einarsson2004clad, gardarsson2004population}.
+Accordingly, the purpose of our analysis is to 
+(a) characterize interannual variability in survival recruitment 
+in M\'{y}vatn's charr population 
+and (b) determine whether directional trends in these demographic rates have
+resulted in the recovery of the population in the wake of its collapse. 
+
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Methods
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\section*{Methods} 
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\subsection*{Study system} 
+% ---------------------------------------------------------------------------------------
+
+M\'{y}vatn is located in northeastern Iceland (65°40’N 17°00’W) 
+and has a tundra-subarctic climate. 
+The lake spans $37 \text{km}^2$, 
+divided into north ($8 \text{km}^2$) and south ($29 \text{km}^2$) basins 
+connected by a narrow channel \citep{einarsson2004myvatn}. 
+M\'{y}vatn is shallow (south basin mean depth = 2.3m) and 
+fed by nurient rich springs that sustain high benthic primary and secondary production.
+The latter comprises large but temporally variable populations of benthic invertebrates 
+such as midges and cladocerans \citep{einarsson2004clad, gardarsson2004population}.
+The benthic invertebrates are in turn 
+an important food source for M\'{y}vatn’s vertebrate populations, 
+including Arctic charr, threespine stickleback (\emph{Gasterosteus aculeatus}), 
+brown trout (\emph{Salmo trutta}), and waterfowl \citep{einarsson2004myvatn}. 
+
+While some arctic charr populations are anadromous, 
+M\'{y}vatn’s population to resides strictly within the lake, 
+despite a major outflow that connects the lake to the Greenland Sea \citep{gudbergsson2004}. 
+Spawning occurs in the fall among individuals aged 4 years and older. 
+There are two charr morphs within M\'{y}vatn: ``regular'' (size at maturation of 35--50cm) 
+and ``dwarf'' (20--25cm). However, the dwarf morph is restricted to a small 
+and relatively isolated part of the south basin; therefore, 
+the ``regular'' morph is the focus of this study. 
+Gut content data reveal a diverse diet, including midges, snails, clams, zooplankton, 
+benthic crustaceans, and sticklebacks. 
+The large-bodied cladoceran Eurycercus is thought to be a particularly important prey item 
+\citep{gudbergsson2004}. 
+While some charr populations are cannibalistic \citep{klemetsen2003atlantic}, 
+especially in the absence of other large-bodied prey (e.g., fish), 
+the charr in M\'{y}vatn appear to lack cannibalism. 
+
+% ---------------------------------------------------------------------------------------
+\subsection*{Data} 
+% ---------------------------------------------------------------------------------------
+
+Systematic surveys of M\'{y}vatn’s Arctic charr have been conducted 
+with gill nets every year from 1986-2020 by a single researcher (G. Gu{\dh}bergsson) 
+using a consistent methodology. 
+The surveys largely took place after the period of most dramatic population decline 
+\citep{gudbergsson2004} 
+and were intended to monitor the recovery of the population following its collapse. 
+Eleven survey stations were sampled from around the lake,
+most of which were located in the south basin. 
+Captured individuals were aged either by otoliths directly or 
+with an estimate based on length.
+The surveys were conducted in fall (late August through September) 
+of every year (just before spawning) and in June in a subset of years. 
+For this analysis we used only the September data. 
+Therefore, in our age classifications an individual of age ``x'' is an individual 
+that survived to that age (e.g., an ``age 1'' individual was born in the previous fall). 
+The oldest individuals in the data set were 12 years old, although observations 
+of individuals older than 6 years are sparse
+(Figure \ref{fig:p_cohort}). 
+In M\'{y}vatn, charr reach maturity between 4 and 5 years of age, 
+and therefore we grouped the older individuals into a single reproductive age class
+denoted ``age 4+''.
+
+% ---------------------------------------------------------------------------------------
+\subsection*{Statistical analysis} 
+% ---------------------------------------------------------------------------------------
+
+We characterized the demography of the charr population 
+using an age-structured model \citep{caswell2001matrix}
+with time-varying demographic rates \citep{zeng1998, nielsen2014estimation}.
+The model projected the dynamics from one time step to the next as
+%
+\begin{equation} \label{eq:XPX}
+    \mathbf{x}_t = \mathbf{P}_{t-1}~\mathbf{x}_{t-1}
+\end{equation}
+%
+where $\mathbf{P}_{t}$ is a demographic projection matrix,
+and $\mathbf{x}_t$ is an age-structured vector of scaled population densities 
+(see description of scaling below) at time $t$.
+%
+The projection matrix was defined as
+%
+\begin{equation} \label{eq:matrix}
+\mathbf{P}_{t} = 
+\left[
+\begin{array}{cccccccc}
+    0             & 0             & 0             & \rho_{t}     \\
+    \phi_{1,t}    & 0             & 0             & 0            \\
+    0             & \phi_{2,t}    & 0             & 0            \\
+    0             & 0             & \phi_{3,t}    & \phi_{4,t}
+    \end{array}
+\right]
+\end{equation}
+%
+where $\rho_{t}$ is per capita recruitment 
+and $\phi_{1,t}$ is the survival probability of age class $i$. 
+The model assumes that only age 4+ is
+and that individuals surviving beyond age 4 return to the age 4+ class.
+
+Temporal variation in recruitment was modeled as a random walk on a log scale to ensure
+that the values remained positive:
+%
+\begin{equation} \label{eq:rho}
+\begin{aligned}
+\text{log}\left(\rho_t\right) &= \text{log}\left(\rho_{t - 1}\right) + \epsilon_{\rho,t} \\
+\epsilon_{\rho,t} &\sim \text{Gaussian}\left(0, \sigma_{\rho} \right)
+\end{aligned}
+\end{equation}
+%
+where $\epsilon_{\rho,t}$ is the random walk step at time $t$.
+The steps of the random walk followed a Gaussian distribution with mean of 0 
+and standard deviation (SD) of $\epsilon_{\rho,t}$.
+Temporal variation in survival probability for age class $i$ was modeled analogously 
+on a logit-scale:
+%
+\begin{equation} \label{eq:phi}
+\begin{aligned}
+\text{logit}\left(\phi_{i, t}\right) &= \text{logit}\left(\phi_{i, t - 1}\right) +
+                                          \epsilon_{\phi,i,t} \\
+\epsilon_{\phi,i,t} &\sim \text{Gaussian}\left(0, \sigma_{\phi} \right)\text{.}
+\end{aligned}
+\end{equation}
+%
+with the same random walk SD used for all age classes 
+to reduce the number of parameters fit by the model.
+Note that the ``random walks'' used to characterize the demographic parameters 
+do not necessarily possess the statistical properties 
+of true random walks (e.g., non-stationarity) 
+as they are constrained by the data during model fitting.
+Rather, they provided a convenient means 
+of allowing the parameters to vary smoothly through time.
+The random walk SDs for recruitment and survival 
+characterized the degree of temporal variation in the respective processes. 
+
+We fit the model in a Bayesian framework with a zero-inflated Poisson likelihood:
+%
+\begin{equation} \label{eq:likelihood}
+\mathcal{L} = 
+\displaystyle\prod_{s}
+\displaystyle\prod_{i}
+\displaystyle\prod_{t}
+\[ \begin{cases} 
+      \theta + (1-\theta) \times \text{Poisson}
+        \left(
+            0~|~\kappa_i~\times~s~\times~x_{i,t}
+        \right) & \text{if}~y_{s,i,t} = 0 \\
+      (1-\theta) \times \text{Poisson}
+        \left(
+            y_{s,i,t}~|~\kappa_i~\times~s~\times~x_{i,t}
+        \right) & \text{if}~y_{s,i,t} > 0
+   \end{cases}
+\]
+\end{equation}
+%
+where $y_{s,i,t}$ is the annual catch for station $s$ and age class $i$,
+$\kappa_i$ is the age-specific catch rate (constrained between 0 and 1),
+$\theta$ is the probability of a zero from a Bernoulli sampling processes, and
+$s=100$ is a scaling factor introduced to improve computationally efficiency
+by preventing exessively large values of $x_{i,t}$ 
+(such that $x_{i,t}$ itself is the population density scaled by $1/s$).
+The likelihood implies that the station-level abundance follows a Poisson distribution
+with a rate parameter equal to the lake-wide mean population density 
+scaled by the catch rate for the corresponding age class.
+We assumed that the lake-wide population was well mixed across years,
+and while we did not attempt to account for systematic differences between stations;
+no such differences were apparent from visual inspection of the data 
+(Figure  \ref{fig:p_sites}; see discussion of potential overdispersion below).
+Estimating a separate catch rate for each age class allowed the model to account
+for systematic differences in catch rates as a function of age.
+Such differences are quite apparent in the data, 
+as far too few first-year individuals were captured to account for the abundance subsequent
+ages, assuming a closed population. 
+We used exponential priors with rate 1/50 for the initial scaled population densities for
+each age class, 
+Gaussian priors with mean 0 and SD of either 5 or 1 for 
+initial log-recruitment or logit-survival (repsectively), 
+Gamma priors with shape and scale both of 1.5 for the random walk SDs,
+and Beta priors with shape parameters both of 2 for the catch rate.
+Priors were selected to be weakly informative regarding overall scale, 
+while not acting strongly against the likelihood in the posterior fit.
+
+To assess temporal trends in the demographic rates, 
+we used generalized least squares  (GLS) to fit lag-1 autoregressive models
+with linear year effects.
+Recruitment and survival probabilities were fit on their corresponding link scales 
+(either log or logit),
+and survival probabilities were fit for each age class separately.
+We used a similar approach to estimate trends in the asymptotic population growth rate
+(log scale), 
+caclulated as the leading eigenvalue of projection matrix $\mathbf{P}_{t}$.
+We performed this analysis on the asymptotic (as opposed to realized) growth rate 
+as we were principally interersted in the effects 
+of the underlying demographic rates per se; 
+the realized growth rate would also have included transient fluctuations due to
+non-equilibrium age structure.
+For all GLS models, the response variables and year were z-scored 
+(subtracted mean and divided by SD) so that coefficients
+could be interpreted as effects sizes;
+fitted values were then back-scaled for the figures.
+
+The demographic model was fit using the statistical language Stan \citep{carpenter2017stan},
+with 4 chains, 3000 iterations, maximumum tree depth set to 13, and adapt delta set to 0.95.
+Convergence and quality of MCMC sampling were assessed using the diagnostics provided by Stan, 
+incuding Rhat, the number of divergences, and the effective sample size.
+We used posterior medians as point esitmates 
+and the bounds of 68\% posterior quantiles as uncertainty intervals 
+(hereafter $\text{UI}_{68\%}$), 
+matching the nominal coverage of standard errors.
+To gauge the degree to which the data were overdispersed relative 
+the the model expectations, 
+we simulated 90\% prediction intervals from equation \ref{eq:likelihood} 
+and compared the coverage of these intervals to the data.
+To assess the extent to which the data contained statistically meaningful information 
+regarding temporal variation in the demographic rates,
+we compared the fit of the full model to a reduced model with the demographic
+rates fixed through time.
+We implemented the Stan model fitting with the \texttt{rstan} package \citep{stan2020rstan},
+performed GLS with the \texttt{gls} function from the \texttt{nlme} package \citep{pinheiro2020nlme}, 
+and calculated the asymptotic growth rate with the \texttt{demogR} package \citep{holland2007demogR}.
+All analysis were conducted in R 4.0.3 \citep{r2020}. 
+
+
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Results
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\section*{Results}
+% ---------------------------------------------------------------------------------------
+
+The full model provided a good visual fit to the station-level 
+catch data (Figure \ref{fig:p_catch}),
+with most of the temporal variation in lake-wide catch being captured by the model.
+The 90\% prediction intervals provided reasonable coverage relative to the observed data,
+although the observations were zero-inflated in some years.
+While in principle it would be possible to account for such zero inflation in the model,
+it is unlikely that this would substantively alter the model inference.
+In contrast to the full model,
+the reduced model provided a poor fit to the data (Figure \ref{fig:p_catch_reduced}),
+displaying damped oscillations that did not reflect the observed dynamics
+(Figure \ref{fig:p_dens_reduced}).
+This was corroborated the median posterior log-likelihood calculated
+from equation \ref{eq:likelihood},
+which was much higher for the full model (-4826) than for the reduced (-7314).
+According to the full model, 
+the catch rates increased with age;
+the catch rate for age 1 individuals was around two orders of magnitude lower
+than for the other age classes (Table \ref{tab:param}). 
+This is consistent with the expectation that age 1 individuals 
+are generally too small to be captured by the gill nets used in the surveys.
+
+M\'{y}vatn's arctic charr population fluctuated substantially over the 3-decade time series
+(Figure \ref{fig:p_dens}), 
+with the asymptotic population growth rate varying across an order of magnitude 
+(Figure \ref{fig:p_lam}).
+This variation was underpinned by substantial variation in survival 
+(Figure \ref{fig:p_surv}) 
+and recruitment (Figure \ref{fig:p_rec}),
+both of which had random walk SDs 
+with posterior densities concentrated away from zero (Table \ref{tab:param}).
+The SD for survival as larger than for recruitment,
+especially when the SDs were judged against the scales of their corresponding 
+demographic processes. 
+This indicates that survival was generally more variable than recruitment,
+a fact that was visually apparent from their respective time series
+(Figures \ref{fig:p_surv} and \ref{fig:p_rec}),
+especially for age 1 and age 3 survival.
+
+The survival probabilities for all age classes increased through time,
+although only the trend for age 4+ was statistically unambiguous 
+(Figure \ref{fig:p_surv}; Table \ref{tab:gls}).
+Elevated age 4+ survival was associated with a steady increase in the catch of
+age 4+ individuals from 2005 onward (Figure \ref{fig:p_catch}). 
+In contrast, per capita recruitment declined through time, 
+consistent with declining age 1 catch,
+and this trend was stronger than for survival of any age class
+(Figure \ref{fig:p_rec}; Table \ref{tab:gls}).
+Therefore, the positive effect of increased survival 
+was potentially negated by the decline in recruitment.
+Indeed, the geometric mean of the population growth rate across years was very close to one
+(0.99 [0.970, 1.02]), indicating no long-term population change.
+Furthermore, there was no clear trend in the population growth rate itself,
+despite its large interannual fluctuations
+(Figure \ref{fig:p_lam}; Table \ref{tab:gls}).
+The AR coefficients were moderately positive for most of the demographic parameters,
+except for age 2 survival and the population growth rate 
+for which the AR coefficients were slightly negative.
+These negative coefficients potentially indicate overcompensatory dynamics,
+although this inference is quite tentative given their low magnitudes 
+and absence of uncertainty estimates.
+Overall, the GLS results show that while the arctic charr population was very dynamic
+over the study period, it did not undergo meaningful directional change.
+
+
+
+
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Discussion
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+
+\section*{Discussion}
+
+In this study, 
+we used data from a multidecadal survey of arctic charr in Lake M\'{y}vatn
+to quantify the population's demography and potential recovery 
+following its collapse due to heavy exploitation 
+\citep{gudbergsson2004}.
+The survival probability of all age classes fluctuated substantially among years,
+with only adults showing an unambiguous positive trend over the course of the study period.
+In contrast, per capita recruitment clearly declined and experienced comparatively little
+variation around this trend.
+The countervailing changes in  per capita recruitment and adult survival resulted 
+in no directional change in the total population size or population growth rate,
+despite the rising number of adults.
+Rather, the dynamics of  M\'{y}vatn's charr population 
+were dominated by large interannual variability
+and a shift towards a relatively older age distribution.
+In and of itself, the increase in adult survival 
+is a positive signal for the population's recovery,
+and it has been taken as such by the local stakeholders 
+who have called for relaxing harvest restrictions in recent years.
+However, persistently low recruitment provides a cautionary note 
+that should be taken into consideration in formulating a management strategy.
+
+A crucial step for projecting the future dynamics of M\'{y}vatn’s charr population 
+is identifying the underlying causes for the decline in per capita recruitment.
+Food web interactions have been identified as an important source 
+of fluctuations in other charr populations 
+\citep{snorrason1992population, amundsen1994piscivory, jonsson2015freshwater}.
+M\'{y}vatn is characterized by dramatic fluctuations in the abundance 
+of primary food sources for juvenile charr, particularly benthic crustaceans 
+and midges 
+\citep{einarsson2004clad, gardarsson2004population, gudbergsson2004}.
+Furthermore, there is substantial spatial heterogeneity in the abundance 
+of these aquatic invertebrates \citep{bartrons2015spatial} 
+which might disproportionately inhibit young juveniles 
+that have more restricted mobility than the larger age classes. 
+The large fluctuations in aquatic invertebrates are associated various consumer species 
+in addition to charr, including sticklebacks and brown trout that could serve 
+as competitors for young charr, and piscivorous waterfowl that could serve as predators 
+\citep{einarsson2004myvatn}. 
+In addition to biotic factors, 
+temperature has received much attention as a driver of charr populations 
+\citep{winfield2008arctic, elliott2010temperature, jonsson2015freshwater},
+given their distribution restricted to arctic
+and cold-temperature lakes \citep{klemetsen2003atlantic}
+and the ubiquity anthropogenic climate change. 
+While climate warming has not yet become an obvious ecological driver at M\'{y}vatn, 
+it is nonetheless possible that temperature changes have adversely affected recruitment 
+in M\'{y}vatn’s charr population as has been seen in other Icelandic lakes 
+\citep{malmquist2009salmonid}. 
+
+This study provides a demographic assessment of a population of arctic charr in a single lake,
+but it reinforces themes that have broad and increasing interest in applied ecology.
+Harvest-induced shifts in age structure have been documented in other fisheries,
+typically resulting in ``truncation'' of the oldest age classes 
+that are typically the targets of harvest efforts
+\citep{hsieh2010fishing}.
+Suppression of adult abundance is expected to have deleterious effects on populations,
+with the corollary that relaxation of harvest should allow populations 
+to recover following overexploitation.
+However, this will only be true if juvenile recruitment is sufficient 
+to sustaining the population's recovery.
+Recruitment in fish populations 
+has long been recognized as highly variable and difficult to predict
+owing to the interplay of numerous biotic and abiotic factors 
+\citep{dixon1999episodic, houde2008emerging, ludsin2014physical}.
+This poses a particular challenge for management efforts, 
+as complex suites of ecological factors are both difficult to understand 
+and difficult to regulate, 
+particularly in comparison to a direct anthropogenic driver such as harvest
+\citep{beamish1999taking, link2002does}.
+The extent to which this is true for M\'{y}vatn's arctic charr is currently unknown.
+Nonetheless, 
+the countervailing trends in survival and recruitment 
+in the wake of alleviated of harvesting pressure
+underscore the potential for heterogeneous demographic responses to management efforts
+due to the complex ecological context in which such efforts take place.
 
 
 
