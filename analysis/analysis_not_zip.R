@@ -25,11 +25,11 @@ site_data <- read_csv("model/site_data.csv") %>%
 
 
 # import model fit
-data_list <- read_rds(paste0("model/output/full_zip/data_list.rds"))
-fit <- read_rds(paste0("model/output/full_zip/fit.rds"))
-fit_sum <- read_csv(paste0("model/output/full_zip/fit_sum.csv"))
-fit_reduced <- read_rds(paste0("model/output/fixed_all_zip/fit.rds"))
-fit_sum_reduced <- read_csv(paste0("model/output/fixed_all_zip/fit_sum.csv"))
+data_list <- read_rds(paste0("model/output/full/data_list.rds"))
+fit <- read_rds(paste0("model/output/full/fit.rds"))
+fit_sum <- read_csv(paste0("model/output/full/fit_sum.csv"))
+fit_reduced <- read_rds(paste0("model/output/fixed_all/fit.rds"))
+fit_sum_reduced <- read_csv(paste0("model/output/fixed_all/fit_sum.csv"))
 
 # set theme
 theme_set(theme_bw() %+replace%
@@ -111,12 +111,6 @@ detect_prob <- rstan::extract(fit, pars = detect_prob_pars) %>%
                                    "age 3",
                                    "age 4+")))
 
-# extract theta
-theta <- rstan::extract(fit, pars = "theta") %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  mutate(step = row_number())
-
 # extract population density from MCMC (subset 2000)
 x_pars <- {fit_sum %>%
     filter(str_detect(.$var, "x\\["))}$var
@@ -141,10 +135,7 @@ x_pred <- x_full %>%
   full_join(detect_prob %>%
               select(step, stage, val) %>%
               rename(p = val)) %>%
-  full_join(theta %>%
-              rename(theta = value)) %>%
-  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
-           rpois(n = length(val), k * p * val)) %>%
+  mutate(y_sim = rpois(n = length(val), k * p * val)) %>%
   group_by(stage, year) %>%
   summarize(lo = quantile(y_sim, probs = c(0.05)),
             mi = quantile(y_sim, probs = c(0.5)),
@@ -204,7 +195,7 @@ p_catch <- ggplot(data = x_pred,
         axis.line.y = element_line(size = 0.25))
 p_catch
 
-# cairo_pdf(file = "analysis/figures/p_catch.pdf",
+# cairo_pdf(file = "analysis/figures/p_catch_not_zip.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_catch
 # dev.off()
@@ -285,7 +276,7 @@ p_dens <- ggplot(data = x_fit,
         axis.line.y = element_line(size = 0.25))
 p_dens
 
-# cairo_pdf(file = "analysis/figures/p_dens.pdf",
+# cairo_pdf(file = "analysis/figures/p_dens_not_zip.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_dens
 # dev.off()
@@ -409,7 +400,7 @@ p_surv <- ggplot(data = ls_fit,
             size = 0.5)+
   scale_y_continuous("logit (survival probability)",
                      breaks = c(-5, 0, 5),
-                     limits = c(-7.2, 7.2))+
+                     limits = c(-7.2, 8))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
                      limits = year_limits)+
@@ -429,7 +420,7 @@ p_surv <- ggplot(data = ls_fit,
         axis.line.y = element_line(size = 0.25))
 p_surv
 
-# cairo_pdf(file = "analysis/figures/p_surv.pdf",
+# cairo_pdf(file = "analysis/figures/p_surv_not_zip.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_surv
 # dev.off()
@@ -508,7 +499,7 @@ p_rec <- ggplot(data = lr_fit,
         axis.line.y = element_line(size = 0.25))
 p_rec
 
-# cairo_pdf(file = "analysis/figures/p_rec.pdf",
+# cairo_pdf(file = "analysis/figures/p_rec_not_zip.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_rec
 # dev.off()
@@ -569,9 +560,9 @@ p_rec
 #       }) %>%
 #       bind_rows()
 #   }) %>% bind_rows() 
-# write_csv(lambda_full, "analysis/lambda_full.csv")
+# write_csv(lambda_full, "analysis/lambda_full_not_zip.csv")
 
-# lambda_full <- read_csv("analysis/lambda_full.csv")
+# lambda_full <- read_csv("analysis/lambda_full_not_zip.csv")
 
 # mean lambda
 lambda_full %>%
@@ -582,8 +573,7 @@ lambda_full %>%
   ungroup() %>%
   summarize(lo = quantile(lam, probs = c(0.16)),
             mi = quantile(lam, probs = c(0.5)),
-            hi = quantile(lam, probs = c(0.84))) %>%
-  as.data.frame()
+            hi = quantile(lam, probs = c(0.84)))
 
 # summarize
 lambda <- lambda_full %>%
@@ -661,7 +651,7 @@ p_lam <- ggplot(data = lambda,
   
 p_lam
 
-# cairo_pdf(file = "analysis/figures/p_lam.pdf",
+# cairo_pdf(file = "analysis/figures/p_lam_not_zip.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_lam
 # dev.off()
@@ -696,11 +686,6 @@ detect_prob_reduced <- rstan::extract(fit, pars = detect_prob_pars_reduced) %>%
                                    "age 3",
                                    "age 4+")))
 
-# extract theta
-theta_reduced <- rstan::extract(fit_reduced, pars = "theta") %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  mutate(step = row_number())
 
 # extract population density from MCMC (subset 2000)
 x_pars_reduced <- {fit_sum_reduced %>%
@@ -726,10 +711,7 @@ x_pred_reduced <- x_full_reduced %>%
   full_join(detect_prob_reduced %>%
               select(step, stage, val) %>%
               rename(p = val)) %>%
-  full_join(theta_reduced %>%
-              rename(theta = value)) %>%
-  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
-           rpois(n = length(val), k * p * val)) %>%
+  mutate(y_sim = rpois(n = length(val), k * p * val)) %>%
   group_by(stage, year) %>%
   summarize(lo = quantile(y_sim, probs = c(0.05)),
             mi = quantile(y_sim, probs = c(0.5)),
@@ -789,7 +771,7 @@ p_catch_reduced <- ggplot(data = x_pred_reduced,
         axis.line.y = element_line(size = 0.25))
 p_catch_reduced
 
-# cairo_pdf(file = "analysis/figures/p_catch_reduced.pdf",
+# cairo_pdf(file = "analysis/figures/p_catch_reduced_not_zip.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_catch_reduced
 # dev.off()
@@ -855,7 +837,7 @@ p_dens_reduced <- ggplot(data = x_fit_reduced,
   scale_y_continuous(Estimated~density~(`#`~station^{-1}),
                      trans = "log",
                      breaks = c(5, 25, 125),
-                     limits = c(3.5,200))+
+                     limits = c(2,200))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
                      limits = year_limits + c(0, 5))+
@@ -870,116 +852,9 @@ p_dens_reduced <- ggplot(data = x_fit_reduced,
         axis.line.y = element_line(size = 0.25))
 p_dens_reduced
 
-# cairo_pdf(file = "analysis/figures/p_dens_reduced.pdf",
+# cairo_pdf(file = "analysis/figures/p_dens_reduced_not_zip.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_dens_reduced
 # dev.off()
 
 #=========================================================================================
-
-
-
-
-
-#=========================================================================================
-#========== Catch by site
-#=========================================================================================
-
-# plot annotation
-labs <- x_full %>%
-  tidyr::expand(stage) %>%
-  mutate(x = mean(year_limits) + 1.5,
-         y = 130)
-
-# plot
-p_sites <- ggplot(data = site_data,
-                  aes(x = year,
-                      y = count,
-                      color = factor(area + 1)))+
-  facet_rep_wrap(~stage)+
-  geom_text(data = labs,
-            aes(label = stage,
-                x = x,
-                y = y),
-            color = "black",
-            size = 3.5,
-            inherit.aes = F)+
-  geom_line(size = 0.3,
-            alpha = 0.75)+
-  scale_y_continuous("Survey catch",
-                     trans = "log1p",
-                     breaks = c(0, 10, 100))+
-  scale_x_continuous("Year",
-                     breaks = year_breaks,
-                     limits = year_limits)+
-  scale_fill_manual(values = stage_colors,
-                    guide = F)+
-  scale_color_viridis_d("")+
-  theme(legend.position = "top",
-        plot.margin = margin(t = 1,
-                             r = 10,
-                             b = 1,
-                             l = 1),
-        panel.border = element_blank(),
-        panel.spacing.x = unit(-0.5, "lines"),
-        panel.spacing.y = unit(0, "lines"),
-        strip.text.x = element_blank(),
-        axis.line.x = element_line(size = 0.25),
-        axis.line.y = element_line(size = 0.25))
-p_sites
-# cairo_pdf(file = "analysis/figures/p_sites.pdf",
-#           width = 3.5, height = 4, family = "Arial")
-# p_sites
-# dev.off()
-
-#=========================================================================================
-
-
-
-
-
-#=========================================================================================
-#========== Catch by cohort
-#=========================================================================================
-
-# prepare cohort data
-# fill in missing ages with estimated age and drop June data
-cohorts <- data %>%
-  mutate(est_age = ifelse(is.na(age)==F, age, est_age)) %>%
-  filter(month != 6, is.na(est_age)==F)%>%
-  select(est_age, year) %>%
-  group_by(est_age, year) %>%
-  summarize(count = length(est_age)) %>%
-  ungroup() %>%
-  mutate(cohort = year - est_age,
-         cohort = cohort - min(cohort) + 1) %>%
-  group_by(cohort) %>%
-  {full_join(., expand(., cohort = min(cohort):max(cohort), est_age = min(est_age):max(est_age)))} %>%
-  mutate(
-    count = ifelse(is.na(count)==T | count == 0, 1L, count) 
-  ) %>%
-  ungroup()
-
-# plot
-p_cohort <- ggplot(data = cohorts,
-                   aes(x = est_age,
-                       y = count,
-                       group = cohort))+
-  geom_line(size = 0.3,
-            alpha = 0.75)+
-  scale_y_continuous("Catch by cohort",
-                     trans="log",
-                     breaks=c(1,10,100, 1000),
-                     limits = c(1, 1000))+
-  scale_x_continuous("Cohort age",
-                     breaks = c(1, 3, 5, 7, 9, 11))+
-  theme(panel.border = element_blank(),
-        panel.spacing = unit(0, "lines"),
-        strip.text.x = element_blank(),
-        axis.line.x = element_line(size = 0.25),
-        axis.line.y = element_line(size = 0.25))
-p_cohort  
-# cairo_pdf(file = "analysis/figures/p_cohort.pdf",
-#           width = 3.5, height = 2.5, family = "Arial")
-# p_cohort
-# dev.off()
