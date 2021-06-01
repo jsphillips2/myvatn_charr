@@ -1,0 +1,114 @@
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Specifications
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+  
+\documentclass[11pt]{article}
+\usepackage[letterpaper, margin=1in]{geometry}
+\usepackage{newtxtext,newtxmath}
+\usepackage[math-style=ISO]{unicode-math}
+\usepackage{fullpage}
+\usepackage[authoryear,sectionbib]{natbib}
+\linespread{1.7}
+\usepackage[utf8]{inputenc}
+\usepackage{lineno}
+\usepackage{titlesec}
+\titleformat{\section}[block]{\Large\bfseries\filcenter}{\thesection}{1em}{}
+\titleformat{\subsection}[block]{\Large\itshape\filcenter}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}[block]{\large\itshape}{\thesubsubsection}{1em}{}
+\titleformat{\paragraph}[runin]{\itshape}{\theparagraph}{1em}{}[. ]\renewcommand{\refname}
+  {Literature Cited}
+\DeclareTextSymbolDefault{\dh}{T1} % for Icelandic ð symbol:
+\usepackage{graphicx} % for figures
+\usepackage{booktabs} % for tables
+\usepackage{amsmath} % for split math environment
+\usepackage{enumitem}
+\DeclareTextSymbolDefault{\dh}{T1} % for Icelandic ð symbol:
+
+
+
+\usepackage{lipsum}
+
+\makeatletter
+\renewcommand{\maketitle}{\bgroup\setlength{\parindent}{0pt}
+\begin{flushleft}
+  \@title
+\end{flushleft}\egroup
+}
+\makeatother
+
+\usepackage{amsmath} % for split math environment
+
+\title{\textbf{Supporting information:}
+          Phillips J.S., G. Gu{\dh}bergsson, & A.R. Ives. 
+          2021. Opposing trends in survival and recruitment slow the recovery 
+          of an historically overexploited fishery. 
+          Submittd to \textit{Freshwater Biology}.}
+
+
+\date{}
+
+\begin{document}
+
+\setlength\parindent{0.25in}
+
+\maketitle
+
+
+\linenumbers{}
+
+\clearpage
+
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+% Supplemental figures
+% ---------------------------------------------------------------------------------------
+% ---------------------------------------------------------------------------------------
+
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\theequation}{S\arabic{equation}}
+\renewcommand{\thetable}{S\arabic{table}}
+\setcounter{equation}{0}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+
+% ---------------------------------------------------------------------------------------
+\begin{figure}
+\centering
+\includegraphics{../analysis/figures/p_cohort.pdf}
+\caption{\label{fig:p_cohort}
+Survey catch as a function of age, with each line corresponding to a unique cohort.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\begin{figure}
+\centering
+\includegraphics{../analysis/figures/p_sites.pdf}
+\caption{\label{fig:p_sites}
+Station-level catch through time, with stations shown in different colors.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------
+\clearpage
+\begin{figure}
+\centering
+\includegraphics{../analysis/figures/p_dens_reduced.pdf}
+\caption{\label{fig:p_dens_reduced}
+Average population density across stations (solid line)
+inferred from the reduced version of the demographic model 
+with survival and recruitment fixed through time.
+Shading depicts 68\% uncertainty intervals, 
+matching the nominal coverage of standard errors.
+The y-axis is on a log scale.
+}
+\end{figure}
+\clearpage
+% ---------------------------------------------------------------------------------------
+\end{document}

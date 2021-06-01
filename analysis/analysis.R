@@ -91,6 +91,8 @@ fit_reduced_ll <- rstan::extract(fit_reduced, pars = "log_lik_sum") %>%
 #========== Population estimates: compare with catch data
 #=========================================================================================
 
+### Full model
+
 # extract scaling parameter
 k <- data_list$k
 
@@ -128,7 +130,7 @@ x_full <- rstan::extract(fit, pars = x_pars) %>%
   gather(var, val, -step) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
+         year = sort(unique(site_data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
                         labels = c("age 1",
@@ -137,6 +139,7 @@ x_full <- rstan::extract(fit, pars = x_pars) %>%
                                    "age 4+"))) 
 
 # simulate prediction interval and summarize 90%
+set.seed(3e2)
 x_pred <- x_full %>%
   full_join(detect_prob %>%
               select(step, stage, val) %>%
@@ -158,11 +161,130 @@ labs <- x_full %>%
          y = 130)
 
 # plot
-p_catch <- ggplot(data = x_pred,
+p_catch_a <- ggplot(data = x_pred,
                   aes(x = year,
                       y = mi,
                       color = stage,
                       fill = stage))+
+  facet_rep_wrap(~stage)+
+  geom_text(data = labs,
+            aes(label = stage,
+                x = x,
+                y = y),
+            color = "black",
+            size = 3.5,
+            inherit.aes = F)+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi),
+              alpha = 0.2,
+              linetype = 0)+
+  geom_jitter(data = site_data,
+              aes(x = year,
+                  y = count),
+              shape = 16,
+              size = 0.5,
+              alpha = 0.5)+
+  geom_line(size = 0.5)+
+  scale_y_continuous("Survey catch",
+                     trans = "log1p",
+                     breaks = c(0, 10, 100))+
+  scale_x_continuous("",
+                     breaks = year_breaks,
+                     labels = NULL,
+                     limits = year_limits)+
+  scale_color_manual(values = stage_colors,
+                     guide = F)+
+  scale_fill_manual(values = stage_colors,
+                    guide = F)+
+  theme(plot.margin = margin(t = 1,
+                             r = 10,
+                             b = 1,
+                             l = 1),
+        panel.border = element_blank(),
+        panel.spacing.x = unit(-0.5, "lines"),
+        panel.spacing.y = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))
+p_catch_a
+
+
+
+
+### Reduced model
+# extract scaling parameter
+k <- data_list$k
+
+# extract detection probabilities
+detect_prob_pars_reduced <- {fit_sum_reduced %>%
+    filter(str_detect(.$var, "p\\["))}$var
+detect_prob_reduced <- rstan::extract(fit, pars = detect_prob_pars_reduced) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(detect_prob_pars_reduced) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+")))
+
+# extract theta
+theta_reduced <- rstan::extract(fit_reduced, pars = "theta") %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  mutate(step = row_number())
+
+# extract population density from MCMC (subset 2000)
+x_pars_reduced <- {fit_sum_reduced %>%
+    filter(str_detect(.$var, "x\\["))}$var
+x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars_reduced) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(x_pars_reduced) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
+         year = sort(unique(site_data$year))[time],
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) 
+
+# simulate prediction interval and summarize 90%
+set.seed(3e2)
+x_pred_reduced <- x_full_reduced %>%
+  full_join(detect_prob_reduced %>%
+              select(step, stage, val) %>%
+              rename(p = val)) %>%
+  full_join(theta_reduced %>%
+              rename(theta = value)) %>%
+  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
+           rpois(n = length(val), k * p * val)) %>%
+  group_by(stage, year) %>%
+  summarize(lo = quantile(y_sim, probs = c(0.05)),
+            mi = quantile(y_sim, probs = c(0.5)),
+            hi = quantile(y_sim, probs = c(0.95))) %>%
+  ungroup()
+
+# plot annotation
+labs <- x_full_reduced %>%
+  tidyr::expand( stage) %>%
+  mutate(x = mean(year_limits),
+         y = 130)
+
+# plot
+p_catch_b <- ggplot(data = x_pred_reduced,
+                          aes(x = year,
+                              y = mi,
+                              color = stage,
+                              fill = stage))+
   facet_rep_wrap(~stage)+
   geom_text(data = labs,
             aes(label = stage,
@@ -202,10 +324,26 @@ p_catch <- ggplot(data = x_pred,
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))
+p_catch_b
+
+
+# combine
+p_catch <- plot_grid(NULL, p_catch_a, NULL, p_catch_b,
+                    nrow = 4,
+                    rel_heights = c(0.12, 1, 0.05, 1),
+                    align = "h",
+                    labels = c("",
+                               "a: time-varying rates",
+                               "",
+                               "b: fixed rates"),
+                    label_size = 12,
+                    label_fontface = "plain",
+                    hjust = c(0, 0, 0, 0),
+                    vjust = c(0, -1.4, 0, -1.4))
 p_catch
 
 # cairo_pdf(file = "analysis/figures/p_catch.pdf",
-#           width = 3.5, height = 3, family = "Arial")
+#           width = 3.5, height = 6, family = "Arial")
 # p_catch
 # dev.off()
 
@@ -227,7 +365,7 @@ x_fit <- fit_sum %>%
   filter(str_detect(.$var, "x\\[")) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
+         year = sort(unique(site_data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
                         labels = c("age 1",
@@ -306,7 +444,7 @@ ls_fit <- fit_sum %>%
          !str_detect(.$var, "sls\\[")) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
+         year = sort(unique(site_data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
                         labels = c("age 1",
@@ -449,7 +587,7 @@ lr_fit <- fit_sum %>%
   filter(str_detect(.$var, "lr\\["),
          !str_detect(.$var, "slr\\[")) %>%
   mutate(time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         year = sort(unique(data$year))[time]) 
+         year = sort(unique(site_data$year))[time]) 
 
 
 # define values for z-scoring
@@ -545,7 +683,7 @@ p_rec
 #          time = ifelse(name == "r",
 #                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
 #                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
-#          year = sort(unique(data$year))[time])
+#          year = sort(unique(site_data$year))[time])
 # 
 # # define matrix of zeros for storing values
 # mat0 <- matrix(0, nrow = 4, ncol = 4)
@@ -671,135 +809,6 @@ p_lam
 
 
 
-
-#=========================================================================================
-#========== Reduced model population estimates: compare with catch data
-#=========================================================================================
-
-# extract scaling parameter
-k <- data_list$k
-
-# extract detection probabilities
-detect_prob_pars_reduced <- {fit_sum_reduced %>%
-    filter(str_detect(.$var, "p\\["))}$var
-detect_prob_reduced <- rstan::extract(fit, pars = detect_prob_pars_reduced) %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(detect_prob_pars_reduced) %>%
-  mutate(step = row_number()) %>%
-  gather(var, val, -step) %>%
-  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         stage = factor(age,
-                        levels = c(1,2,3,4),
-                        labels = c("age 1",
-                                   "age 2",
-                                   "age 3",
-                                   "age 4+")))
-
-# extract theta
-theta_reduced <- rstan::extract(fit_reduced, pars = "theta") %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  mutate(step = row_number())
-
-# extract population density from MCMC (subset 2000)
-x_pars_reduced <- {fit_sum_reduced %>%
-    filter(str_detect(.$var, "x\\["))}$var
-x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars_reduced) %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(x_pars_reduced) %>%
-  mutate(step = row_number()) %>%
-  gather(var, val, -step) %>%
-  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
-         stage = factor(age,
-                        levels = c(1,2,3,4),
-                        labels = c("age 1",
-                                   "age 2",
-                                   "age 3",
-                                   "age 4+"))) 
-
-# simulate prediction interval and summarize 90%
-x_pred_reduced <- x_full_reduced %>%
-  full_join(detect_prob_reduced %>%
-              select(step, stage, val) %>%
-              rename(p = val)) %>%
-  full_join(theta_reduced %>%
-              rename(theta = value)) %>%
-  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
-           rpois(n = length(val), k * p * val)) %>%
-  group_by(stage, year) %>%
-  summarize(lo = quantile(y_sim, probs = c(0.05)),
-            mi = quantile(y_sim, probs = c(0.5)),
-            hi = quantile(y_sim, probs = c(0.95))) %>%
-  ungroup()
-
-# plot annotation
-labs <- x_full_reduced %>%
-  tidyr::expand( stage) %>%
-  mutate(x = mean(year_limits),
-         y = 130)
-
-# plot
-p_catch_reduced <- ggplot(data = x_pred_reduced,
-                  aes(x = year,
-                      y = mi,
-                      color = stage,
-                      fill = stage))+
-  facet_rep_wrap(~stage)+
-  geom_text(data = labs,
-            aes(label = stage,
-                x = x,
-                y = y),
-            color = "black",
-            size = 3.5,
-            inherit.aes = F)+
-  geom_ribbon(aes(ymin = lo,
-                  ymax = hi),
-              alpha = 0.2,
-              linetype = 0)+
-  geom_jitter(data = site_data,
-              aes(x = year,
-                  y = count),
-              shape = 16,
-              size = 0.5,
-              alpha = 0.5)+
-  geom_line(size = 0.5)+
-  scale_y_continuous("Survey catch",
-                     trans = "log1p",
-                     breaks = c(0, 10, 100))+
-  scale_x_continuous("Year",
-                     breaks = year_breaks,
-                     limits = year_limits)+
-  scale_color_manual(values = stage_colors,
-                     guide = F)+
-  scale_fill_manual(values = stage_colors,
-                    guide = F)+
-  theme(plot.margin = margin(t = 1,
-                             r = 10,
-                             b = 1,
-                             l = 1),
-        panel.border = element_blank(),
-        panel.spacing.x = unit(-0.5, "lines"),
-        panel.spacing.y = unit(0, "lines"),
-        strip.text.x = element_blank(),
-        axis.line.x = element_line(size = 0.25),
-        axis.line.y = element_line(size = 0.25))
-p_catch_reduced
-
-# cairo_pdf(file = "analysis/figures/p_catch_reduced.pdf",
-#           width = 3.5, height = 3, family = "Arial")
-# p_catch_reduced
-# dev.off()
-
-#=========================================================================================
-
-
-
-
-
 #=========================================================================================
 #========== Reduced population estimates: relative density
 #=========================================================================================
@@ -812,7 +821,7 @@ x_fit_reduced <- fit_sum_reduced %>%
   filter(str_detect(.$var, "x\\[")) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
+         year = sort(unique(site_data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
                         labels = c("age 1",
