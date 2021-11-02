@@ -11,7 +11,6 @@ library(AICcmodavg)
 library(demogR)
 
 # import data 
-data <- read_csv("data/myvatn_char_clean_1986_2020.csv")
 site_data <- read_csv("model/site_data.csv") %>%
   mutate(stage = factor(stage,
                         levels = c("first",
@@ -24,12 +23,20 @@ site_data <- read_csv("model/site_data.csv") %>%
                                    "age 4+")))
 
 
-# import model fit
-data_list <- read_rds(paste0("model/output/full/data_list.rds"))
-fit <- read_rds(paste0("model/output/full/fit.rds"))
-fit_sum <- read_csv(paste0("model/output/full/fit_sum.csv"))
-fit_reduced <- read_rds(paste0("model/output/fixed_all/fit.rds"))
-fit_sum_reduced <- read_csv(paste0("model/output/fixed_all/fit_sum.csv"))
+# import data_list
+data_list <- read_rds("model/model_fits/primary/data_list.rds")
+
+# import expanded model including separate surv sd's
+fit_expanded <- read_rds("model/model_fits/expanded/fit.rds") 
+fit_sum_expanded  <- read_csv("model/model_fits/expanded/fit_sum.csv")  
+
+# import primary model with fixed surv sd's 
+fit <- read_rds("model/model_fits/primary/fit.rds")                   
+fit_sum <- read_csv("model/model_fits/primary/fit_sum.csv")
+
+# reduced model with fixed sd's
+fit_reduced <- read_rds("model/model_fits/reduced/fit.rds")           
+fit_sum_reduced <- read_csv("model/model_fits/reduced/fit_sum.csv")
 
 # set theme
 theme_set(theme_bw() %+replace%
@@ -66,10 +73,15 @@ names(stage_colors) <- c("age 1","age 2","age 3","age 4+")
 
 
 #=========================================================================================
-#========== Model comparison: log-likelihood
+#========== Model comparison
 #=========================================================================================
 
 # posterior log-likelihood
+fit_expanded_ll <- rstan::extract(fit_expanded, pars = "log_lik_sum") %>%
+  as_tibble() %>%
+  summarize(lo = quantile(log_lik_sum, probs = 0.16),
+            mi = median(log_lik_sum),
+            hi = quantile(log_lik_sum, probs = 0.85))
 fit_ll <- rstan::extract(fit, pars = "log_lik_sum") %>%
   as_tibble() %>%
   summarize(lo = quantile(log_lik_sum, probs = 0.16),
@@ -81,6 +93,10 @@ fit_reduced_ll <- rstan::extract(fit_reduced, pars = "log_lik_sum") %>%
             mi = median(log_lik_sum),
             hi = quantile(log_lik_sum, probs = 0.85))
 
+# examine surv sd's
+fit_sum_expanded %>% filter(str_detect(.$var, "sls"))
+fit_sum %>% filter(str_detect(.$var, "sls"))
+
 #=========================================================================================
 
 
@@ -90,6 +106,8 @@ fit_reduced_ll <- rstan::extract(fit_reduced, pars = "log_lik_sum") %>%
 #=========================================================================================
 #========== Population estimates: compare with catch data
 #=========================================================================================
+
+### Full model
 
 # extract scaling parameter
 k <- data_list$k
@@ -111,7 +129,13 @@ detect_prob <- rstan::extract(fit, pars = detect_prob_pars) %>%
                                    "age 3",
                                    "age 4+")))
 
-# extract population density from MCMC (subset 2000)
+# extract theta
+theta <- rstan::extract(fit, pars = "theta") %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  mutate(step = row_number())
+
+# extract population density from MCMC
 x_pars <- {fit_sum %>%
     filter(str_detect(.$var, "x\\["))}$var
 x_full <- rstan::extract(fit, pars = x_pars) %>%
@@ -122,7 +146,7 @@ x_full <- rstan::extract(fit, pars = x_pars) %>%
   gather(var, val, -step) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
+         year = sort(unique(site_data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
                         labels = c("age 1",
@@ -131,11 +155,15 @@ x_full <- rstan::extract(fit, pars = x_pars) %>%
                                    "age 4+"))) 
 
 # simulate prediction interval and summarize 90%
+set.seed(3e2)
 x_pred <- x_full %>%
   full_join(detect_prob %>%
               select(step, stage, val) %>%
               rename(p = val)) %>%
-  mutate(y_sim = rpois(n = length(val), k * p * val)) %>%
+  full_join(theta %>%
+              rename(theta = value)) %>%
+  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
+           rpois(n = length(val), k * p * val)) %>%
   group_by(stage, year) %>%
   summarize(lo = quantile(y_sim, probs = c(0.05)),
             mi = quantile(y_sim, probs = c(0.5)),
@@ -149,11 +177,130 @@ labs <- x_full %>%
          y = 130)
 
 # plot
-p_catch <- ggplot(data = x_pred,
+p_catch_a <- ggplot(data = x_pred,
                   aes(x = year,
                       y = mi,
                       color = stage,
                       fill = stage))+
+  facet_rep_wrap(~stage)+
+  geom_text(data = labs,
+            aes(label = stage,
+                x = x,
+                y = y),
+            color = "black",
+            size = 3.5,
+            inherit.aes = F)+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi),
+              alpha = 0.2,
+              linetype = 0)+
+  geom_jitter(data = site_data,
+              aes(x = year,
+                  y = count),
+              shape = 16,
+              size = 0.5,
+              alpha = 0.5)+
+  geom_line(size = 0.5)+
+  scale_y_continuous("Survey catch",
+                     trans = "log1p",
+                     breaks = c(0, 10, 100))+
+  scale_x_continuous("",
+                     breaks = year_breaks,
+                     labels = NULL,
+                     limits = year_limits)+
+  scale_color_manual(values = stage_colors,
+                     guide = F)+
+  scale_fill_manual(values = stage_colors,
+                    guide = F)+
+  theme(plot.margin = margin(t = 1,
+                             r = 10,
+                             b = 1,
+                             l = 1),
+        panel.border = element_blank(),
+        panel.spacing.x = unit(-0.5, "lines"),
+        panel.spacing.y = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))
+p_catch_a
+
+
+
+
+### Reduced model
+# extract scaling parameter
+k <- data_list$k
+
+# extract detection probabilities
+detect_prob_pars_reduced <- {fit_sum_reduced %>%
+    filter(str_detect(.$var, "p\\["))}$var
+detect_prob_reduced <- rstan::extract(fit, pars = detect_prob_pars_reduced) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(detect_prob_pars_reduced) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+")))
+
+# extract theta
+theta_reduced <- rstan::extract(fit_reduced, pars = "theta") %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  mutate(step = row_number())
+
+# extract population density from MCMC
+x_pars_reduced <- {fit_sum_reduced %>%
+    filter(str_detect(.$var, "x\\["))}$var
+x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars_reduced) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(x_pars_reduced) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
+         year = sort(unique(site_data$year))[time],
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) 
+
+# simulate prediction interval and summarize 90%
+set.seed(3e2)
+x_pred_reduced <- x_full_reduced %>%
+  full_join(detect_prob_reduced %>%
+              select(step, stage, val) %>%
+              rename(p = val)) %>%
+  full_join(theta_reduced %>%
+              rename(theta = value)) %>%
+  mutate(y_sim = rbinom(n = length(val), size =  1, prob = 1 - theta) * 
+           rpois(n = length(val), k * p * val)) %>%
+  group_by(stage, year) %>%
+  summarize(lo = quantile(y_sim, probs = c(0.05)),
+            mi = quantile(y_sim, probs = c(0.5)),
+            hi = quantile(y_sim, probs = c(0.95))) %>%
+  ungroup()
+
+# plot annotation
+labs <- x_full_reduced %>%
+  tidyr::expand( stage) %>%
+  mutate(x = mean(year_limits),
+         y = 130)
+
+# plot
+p_catch_b <- ggplot(data = x_pred_reduced,
+                          aes(x = year,
+                              y = mi,
+                              color = stage,
+                              fill = stage))+
   facet_rep_wrap(~stage)+
   geom_text(data = labs,
             aes(label = stage,
@@ -193,10 +340,29 @@ p_catch <- ggplot(data = x_pred,
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))
+p_catch_b
+
+
+# combine
+p_catch <- plot_grid(NULL, p_catch_a, NULL, p_catch_b,
+                    nrow = 4,
+                    rel_heights = c(0.12, 1, 0.05, 1),
+                    align = "h",
+                    labels = c("",
+                               "a: time-varying rates",
+                               "",
+                               "b: fixed rates"),
+                    label_size = 12,
+                    label_fontface = "plain",
+                    hjust = c(0, 0, 0, 0),
+                    vjust = c(0, -1.4, 0, -1.4))
+
+# examine plot
 p_catch
 
-# cairo_pdf(file = "analysis/figures/p_catch_not_zip.pdf",
-#           width = 3.5, height = 3, family = "Arial")
+# export
+# cairo_pdf(file = "analysis/figures/p_catch.pdf",
+#           width = 3.5, height = 6, family = "Arial")
 # p_catch
 # dev.off()
 
@@ -218,7 +384,7 @@ x_fit <- fit_sum %>%
   filter(str_detect(.$var, "x\\[")) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
+         year = sort(unique(site_data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
                         labels = c("age 1",
@@ -274,9 +440,12 @@ p_dens <- ggplot(data = x_fit,
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))
+
+# examine plot
 p_dens
 
-# cairo_pdf(file = "analysis/figures/p_dens_not_zip.pdf",
+# export
+# cairo_pdf(file = "analysis/figures/p_dens.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_dens
 # dev.off()
@@ -297,7 +466,7 @@ ls_fit <- fit_sum %>%
          !str_detect(.$var, "sls\\[")) %>%
   mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
          time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
+         year = sort(unique(site_data$year))[time],
          stage = factor(age,
                         levels = c(1,2,3,4),
                         labels = c("age 1",
@@ -400,7 +569,7 @@ p_surv <- ggplot(data = ls_fit,
             size = 0.5)+
   scale_y_continuous("logit (survival probability)",
                      breaks = c(-5, 0, 5),
-                     limits = c(-7.2, 8))+
+                     limits = c(-7.2, 7.2))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
                      limits = year_limits)+
@@ -418,9 +587,12 @@ p_surv <- ggplot(data = ls_fit,
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))
+
+# examine plot
 p_surv
 
-# cairo_pdf(file = "analysis/figures/p_surv_not_zip.pdf",
+# export
+# cairo_pdf(file = "analysis/figures/p_surv.pdf",
 #           width = 3.5, height = 3, family = "Arial")
 # p_surv
 # dev.off()
@@ -440,7 +612,7 @@ lr_fit <- fit_sum %>%
   filter(str_detect(.$var, "lr\\["),
          !str_detect(.$var, "slr\\[")) %>%
   mutate(time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         year = sort(unique(data$year))[time]) 
+         year = sort(unique(site_data$year))[time]) 
 
 
 # define values for z-scoring
@@ -497,12 +669,16 @@ p_rec <- ggplot(data = lr_fit,
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))
+
+# examine plot
 p_rec
 
-# cairo_pdf(file = "analysis/figures/p_rec_not_zip.pdf",
+# export
+# cairo_pdf(file = "analysis/figures/p_rec.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_rec
 # dev.off()
+
 
 #=========================================================================================
 
@@ -514,55 +690,56 @@ p_rec
 #========== Asymptotic growth rate
 #=========================================================================================
 
-# # extract population density from MCMC (subset 2000)
-# set.seed(1e3)
-# dem_pars <- {fit_sum %>%
-#     filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
-#            !str_detect(.$var, "ls\\["),
-#            !str_detect(.$var, "zs\\["),
-#            !str_detect(.$var, "lr\\["),
-#            !str_detect(.$var, "zr\\["))}$var
-# dem_full <- rstan::extract(fit, pars = dem_pars) %>%
-#   parallel::mclapply(as_tibble) %>%
-#   bind_cols() %>%
-#   set_names(dem_pars) %>%
-#   sample_n(2000) %>%
-#   mutate(step = row_number()) %>%
-#   gather(var, val, -step) %>%
-#   mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
-#          age = ifelse(name == "r",
-#                       1,
-#                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
-#          time = ifelse(name == "r",
-#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
-#          year = sort(unique(data$year))[time])
-# 
-# # define matrix of zeros for storing values
-# mat0 <- matrix(0, nrow = 4, ncol = 4)
-# 
-# # fill matrix and calculate asymptotic growth rate
-# lambda_full <- dem_full %>%
-#   split(.$step) %>%
-#   parallel::mclapply(function(x_){
-#     x_ %>% split(.$year) %>%
-#       lapply(function(xx_){
-#         v_ = xx_$val
-#         mat_ <- mat0
-#         mat_[1, 4] <- v_[1]
-#         mat_[2, 1] <- v_[2]
-#         mat_[3, 2] <- v_[3]
-#         mat_[4, 3] <- v_[4]
-#         mat_[4, 4] <- v_[5]
-#         lam_ = eigen.analysis(mat_)$lambda1
-#         return(tibble(year = unique(xx_$year),
-#                       lam = lam_))
-#       }) %>%
-#       bind_rows()
-#   }) %>% bind_rows() 
-# write_csv(lambda_full, "analysis/lambda_full_not_zip.csv")
+# extract population density from MCMC (subset 2000)
+set.seed(1e3)
+dem_pars <- {fit_sum %>%
+    filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
+           !str_detect(.$var, "ls\\["),
+           !str_detect(.$var, "zs\\["),
+           !str_detect(.$var, "lr\\["),
+           !str_detect(.$var, "zr\\["))}$var
+dem_full <- rstan::extract(fit, pars = dem_pars) %>%
+  parallel::mclapply(as_tibble) %>%
+  bind_cols() %>%
+  set_names(dem_pars) %>%
+  sample_n(2000) %>%
+  mutate(step = row_number()) %>%
+  gather(var, val, -step) %>%
+  mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
+         age = ifelse(name == "r",
+                      1,
+                      strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
+         time = ifelse(name == "r",
+                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
+         year = sort(unique(site_data$year))[time])
 
-# lambda_full <- read_csv("analysis/lambda_full_not_zip.csv")
+# define matrix of zeros for storing values
+mat0 <- matrix(0, nrow = 4, ncol = 4)
+
+# fill matrix and calculate asymptotic growth rate
+lambda_full <- dem_full %>%
+  split(.$step) %>%
+  parallel::mclapply(function(x_){
+    x_ %>% split(.$year) %>%
+      lapply(function(xx_){
+        v_ = xx_$val
+        mat_ <- mat0
+        mat_[1, 4] <- v_[1]
+        mat_[2, 1] <- v_[2]
+        mat_[3, 2] <- v_[3]
+        mat_[4, 3] <- v_[4]
+        mat_[4, 4] <- v_[5]
+        lam_ = eigen.analysis(mat_)$lambda1
+        return(tibble(year = unique(xx_$year),
+                      lam = lam_))
+      }) %>%
+      bind_rows()
+  }) %>% bind_rows()
+
+# write_csv(lambda_full, "analysis/lambda_full.csv")
+
+# lambda_full <- read_csv("analysis/lambda_full.csv")
 
 # mean lambda
 lambda_full %>%
@@ -573,7 +750,8 @@ lambda_full %>%
   ungroup() %>%
   summarize(lo = quantile(lam, probs = c(0.16)),
             mi = quantile(lam, probs = c(0.5)),
-            hi = quantile(lam, probs = c(0.84)))
+            hi = quantile(lam, probs = c(0.84))) %>%
+  as.data.frame()
 
 # summarize
 lambda <- lambda_full %>%
@@ -648,213 +826,14 @@ p_lam <- ggplot(data = lambda,
         strip.text.x = element_blank(),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))
-  
+ 
+# examine plot
 p_lam
 
-# cairo_pdf(file = "analysis/figures/p_lam_not_zip.pdf",
+# export
+# cairo_pdf(file = "analysis/figures/p_lam.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_lam
-# dev.off()
-
-#=========================================================================================
-
-
-
-
-
-#=========================================================================================
-#========== Reduced model population estimates: compare with catch data
-#=========================================================================================
-
-# extract scaling parameter
-k <- data_list$k
-
-# extract detection probabilities
-detect_prob_pars_reduced <- {fit_sum_reduced %>%
-    filter(str_detect(.$var, "p\\["))}$var
-detect_prob_reduced <- rstan::extract(fit, pars = detect_prob_pars_reduced) %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(detect_prob_pars_reduced) %>%
-  mutate(step = row_number()) %>%
-  gather(var, val, -step) %>%
-  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         stage = factor(age,
-                        levels = c(1,2,3,4),
-                        labels = c("age 1",
-                                   "age 2",
-                                   "age 3",
-                                   "age 4+")))
-
-
-# extract population density from MCMC (subset 2000)
-x_pars_reduced <- {fit_sum_reduced %>%
-    filter(str_detect(.$var, "x\\["))}$var
-x_full_reduced <- rstan::extract(fit_reduced, pars = x_pars_reduced) %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(x_pars_reduced) %>%
-  mutate(step = row_number()) %>%
-  gather(var, val, -step) %>%
-  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
-         stage = factor(age,
-                        levels = c(1,2,3,4),
-                        labels = c("age 1",
-                                   "age 2",
-                                   "age 3",
-                                   "age 4+"))) 
-
-# simulate prediction interval and summarize 90%
-x_pred_reduced <- x_full_reduced %>%
-  full_join(detect_prob_reduced %>%
-              select(step, stage, val) %>%
-              rename(p = val)) %>%
-  mutate(y_sim = rpois(n = length(val), k * p * val)) %>%
-  group_by(stage, year) %>%
-  summarize(lo = quantile(y_sim, probs = c(0.05)),
-            mi = quantile(y_sim, probs = c(0.5)),
-            hi = quantile(y_sim, probs = c(0.95))) %>%
-  ungroup()
-
-# plot annotation
-labs <- x_full_reduced %>%
-  tidyr::expand( stage) %>%
-  mutate(x = mean(year_limits),
-         y = 130)
-
-# plot
-p_catch_reduced <- ggplot(data = x_pred_reduced,
-                  aes(x = year,
-                      y = mi,
-                      color = stage,
-                      fill = stage))+
-  facet_rep_wrap(~stage)+
-  geom_text(data = labs,
-            aes(label = stage,
-                x = x,
-                y = y),
-            color = "black",
-            size = 3.5,
-            inherit.aes = F)+
-  geom_ribbon(aes(ymin = lo,
-                  ymax = hi),
-              alpha = 0.2,
-              linetype = 0)+
-  geom_jitter(data = site_data,
-              aes(x = year,
-                  y = count),
-              shape = 16,
-              size = 0.5,
-              alpha = 0.5)+
-  geom_line(size = 0.5)+
-  scale_y_continuous("Survey catch",
-                     trans = "log1p",
-                     breaks = c(0, 10, 100))+
-  scale_x_continuous("Year",
-                     breaks = year_breaks,
-                     limits = year_limits)+
-  scale_color_manual(values = stage_colors,
-                     guide = F)+
-  scale_fill_manual(values = stage_colors,
-                    guide = F)+
-  theme(plot.margin = margin(t = 1,
-                             r = 10,
-                             b = 1,
-                             l = 1),
-        panel.border = element_blank(),
-        panel.spacing.x = unit(-0.5, "lines"),
-        panel.spacing.y = unit(0, "lines"),
-        strip.text.x = element_blank(),
-        axis.line.x = element_line(size = 0.25),
-        axis.line.y = element_line(size = 0.25))
-p_catch_reduced
-
-# cairo_pdf(file = "analysis/figures/p_catch_reduced_not_zip.pdf",
-#           width = 3.5, height = 3, family = "Arial")
-# p_catch_reduced
-# dev.off()
-
-#=========================================================================================
-
-
-
-
-
-#=========================================================================================
-#========== Reduced population estimates: relative density
-#=========================================================================================
-
-# extract scaling parameter
-k <- data_list$k
-
-# extract density estimate
-x_fit_reduced <- fit_sum_reduced %>%
-  filter(str_detect(.$var, "x\\[")) %>%
-  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
-         year = sort(unique(data$year))[time],
-         stage = factor(age,
-                        levels = c(1,2,3,4),
-                        labels = c("age 1",
-                                   "age 2",
-                                   "age 3",
-                                   "age 4+"))) %>%
-  # scale by k
-  mutate(lo = k * lo,
-         mi = k * mi,
-         hi = k * hi) %>%
-  select(year, stage, lo, mi, hi)
-
-
-# plot annotation
-labs <- x_fit_reduced %>%
-  filter(year == 2020) %>%
-  mutate(x = 2020,
-         y = mi)
-
-# plot
-p_dens_reduced <- ggplot(data = x_fit_reduced,
-                 aes(x = year,
-                     y = mi,
-                     color = stage,
-                     fill = stage))+
-  geom_text(data = labs,
-            aes(label = stage,
-                x = x,
-                y = y,
-                color = stage),
-            size = 3.5,
-            inherit.aes = F,
-            nudge_y = c(0, 0, 0, 0),
-            nudge_x = c(3.1, 3.1, 3.1, 3.6))+
-  geom_line(size = 0.5)+
-  geom_ribbon(aes(ymin = lo,
-                  ymax = hi),
-              alpha = 0.2,
-              linetype = 0)+
-  scale_y_continuous(Estimated~density~(`#`~station^{-1}),
-                     trans = "log",
-                     breaks = c(5, 25, 125),
-                     limits = c(2,200))+
-  scale_x_continuous("Year",
-                     breaks = year_breaks,
-                     limits = year_limits + c(0, 5))+
-  scale_color_manual(values = stage_colors,
-                     guide = F)+
-  scale_fill_manual(values = stage_colors,
-                    guide = F)+
-  theme(panel.border = element_blank(),
-        panel.spacing = unit(0, "lines"),
-        strip.text.x = element_blank(),
-        axis.line.x = element_line(size = 0.25),
-        axis.line.y = element_line(size = 0.25))
-p_dens_reduced
-
-# cairo_pdf(file = "analysis/figures/p_dens_reduced_not_zip.pdf",
-#           width = 3.5, height = 3, family = "Arial")
-# p_dens_reduced
 # dev.off()
 
 #=========================================================================================

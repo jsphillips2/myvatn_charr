@@ -7,6 +7,7 @@
 
 
 
+
 //=======================================================================================
 
 data {
@@ -16,10 +17,12 @@ data {
   int n_sites;                                     // number of sites
   int n_years;                                     // number of years
   int y[n_stages, n_sites, n_years];               // survey data
-  real xp[6, 2];                                      // values for prior parameterization
+  real xp[7, 2];                                   // values for prior parameterization
   int<lower=0, upper=1> tvr[2];                    // binary for time-varying rates 
+  int slsm[4];                                     // mapping of survival sd's
   real k;                                          // scaling for population density 
-  
+  int n_zero[n_stages, n_years];
+  int n_nonzero[n_stages, n_years];
 }
 
 //=======================================================================================
@@ -31,11 +34,12 @@ parameters {
   real ls0[n_stages];                              // initial survival
   real<lower=0> x0[n_stages];                      // initial population density
   real<lower=0> slr[tvr[1]];                       // sd for recruitment random walk
-  real<lower=0> sls[tvr[2]];                       // sd for survival random walk 
+  real<lower=0> sls[tvr[2] * max(slsm)];                     // sd for survival random walk 
   real zr[tvr[1] * (n_years - 1)];                 // deviates for recruitment random walk
   real zs[tvr[2] * n_stages, 
           tvr[2] * (n_years - 1)];                 // deviates for survival random walk   
-  real<lower=0, upper=1> p[n_stages];              // detection probability      
+  real<lower=0, upper=1> p[n_stages];              // detection probability  
+  real<lower=0, upper=1> theta;                    // bernoulli zero probability
 
 }
 
@@ -73,7 +77,7 @@ transformed parameters {
       // survival
       if (tvr[2] == 1) {
         for (i in 1 : n_stages) {
-          ls[i, t] = ls[i, t - 1] + sls[1] * zs[i, t - 1];
+          ls[i, t] = ls[i, t - 1] + sls[slsm[i]] * zs[i, t - 1];
         }
       }
       
@@ -150,13 +154,18 @@ model {
   p ~ beta(xp[4, 1], xp[4, 2]);
   slr ~ gamma(xp[5, 1], xp[5, 1] / xp[5, 2]);
   sls ~ gamma(xp[6, 1], xp[6, 1] / xp[6, 2]);
+  theta ~ beta(xp[7, 1], xp[7, 2]);
   
   
   
   // likelihood
   for (t in 1 : n_years) {
-    for (i in 1:n_stages) {
-      y[i, ,t] ~ poisson(k * p[i] * x[i, t]);
+    for (i in 1 : n_stages) {
+      target += n_zero[i, t] * log_sum_exp(bernoulli_lpmf(1 | theta),
+                                  bernoulli_lpmf(0 | theta) + 
+                                    poisson_lpmf(0 | k * p[i] * x[i, t]));
+      target += n_nonzero[i, t] * bernoulli_lpmf(0 | theta);
+      target += poisson_lpmf(y[i, 1 : n_nonzero[i, t] ,t] | k * p[i] * x[i, t]);
     }
   }
   
@@ -165,28 +174,30 @@ model {
 //=======================================================================================
 
 generated quantities {
-  
+
   // declare variables
-  real log_lik [n_stages * n_sites * n_years];     // pointwise log-likelihood
+  real log_lik [n_stages * n_years];               // stage x year log-likelihood
   real log_lik_sum;                                // total log-likelihood
-  
-  // pointwise log-likelihood
+
+  // log-likelihood by stage x year
   {
     int pos = 1;
     for (t in 1 : n_years) {
-      for (j in 1 : n_sites) {
-        for (i in 1 : n_stages) {
-          log_lik[pos] = poisson_lpmf(y[i, j, t] | k * p[i] * x[i, t]);
-          pos += 1;
-        }
+      for (i in 1 : n_stages) {
+        log_lik[pos] = n_zero[i, t] * log_sum_exp(bernoulli_lpmf(1 | theta),
+                                  bernoulli_lpmf(0 | theta) +
+                                    poisson_lpmf(0 | k * p[i] * x[i, t])) +
+                                     n_nonzero[i, t] * bernoulli_lpmf(0 | theta) +
+                                      poisson_lpmf(y[i, 1 : n_nonzero[i, t] ,t] | 
+                                                    k * p[i] * x[i, t]);
+        pos += 1;
       }
     }
   }
-  
+
   // total log-likelihood
   log_lik_sum = sum(log_lik);
-  
-}
 
+}
 
 //=======================================================================================
