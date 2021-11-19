@@ -132,9 +132,9 @@ s_dens_reduced <- ggplot(data = x_fit_reduced,
                      breaks = year_breaks,
                      limits = year_limits + c(0, 5))+
   scale_color_manual(values = stage_colors,
-                     guide = F)+
+                     guide = "none")+
   scale_fill_manual(values = stage_colors,
-                    guide = F)+
+                    guide = "none")+
   theme(panel.border = element_blank(),
         panel.spacing = unit(0, "lines"),
         strip.text.x = element_blank(),
@@ -161,7 +161,7 @@ s_dens_reduced
 #=========================================================================================
 
 # plot annotation
-labs <- x_full %>%
+labs <- x_fit_reduced %>%
   tidyr::expand(stage) %>%
   mutate(x = mean(year_limits) + 1.5,
          y = 130)
@@ -188,7 +188,7 @@ s_sites <- ggplot(data = site_data,
                      breaks = year_breaks,
                      limits = year_limits)+
   scale_fill_manual(values = stage_colors,
-                    guide = F)+
+                    guide = "none")+
   scale_color_viridis_d("")+
   theme(legend.position = "top",
         plot.margin = margin(t = 1,
@@ -260,3 +260,90 @@ s_cohort
 #           width = 3.5, height = 2.5, family = "Arial")
 # s_cohort
 # dev.off()
+
+
+
+
+#=========================================================================================
+#========== Survival probability
+#=========================================================================================
+
+# logit survival
+s_fit <- fit_sum %>%
+  filter(str_detect(.$var, "s\\["),
+         !str_detect(.$var, "sls\\["),
+         !str_detect(.$var, "ls\\["),
+         !str_detect(.$var, "zs\\[")) %>%
+  mutate(age = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+         time = strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3])),
+         year = sort(unique(site_data$year))[time],
+         stage = factor(age,
+                        levels = c(1,2,3,4),
+                        labels = c("age 1",
+                                   "age 2",
+                                   "age 3",
+                                   "age 4+"))) 
+
+
+
+# plot annotation
+labs <- x_full %>%
+  tidyr::expand(stage) %>%
+  mutate(x = mean(year_limits),
+         y = 7)
+
+# plot
+s_surv <- ggplot(data = s_fit,
+                 aes(x = year, 
+                     y = mi,
+                     color = stage))+
+  facet_rep_wrap(~stage)+
+  geom_hline(yintercept = 0.5, 
+             linetype = 2, 
+             size = 0.5,
+             color = "gray50")+
+  geom_text(data = labs,
+            aes(label = stage,
+                x = x,
+                y = y),
+            color = "black",
+            size = 3.5,
+            inherit.aes = F)+
+  geom_ribbon(aes(ymin = lo,
+                  ymax = hi,
+                  fill = stage),
+              linetype = 0,
+              alpha = 0.2)+
+  geom_line(size = 0.5)+
+  scale_y_continuous("Survival probability",
+                     breaks =c(0,0.25, 0.5,0.75, 1),
+                     limits = c(0, 1))+
+  scale_x_continuous("Year",
+                     breaks = year_breaks,
+                     limits = year_limits)+
+  scale_color_manual(values = stage_colors,
+                     guide = "none")+
+  scale_fill_manual(values = stage_colors,
+                    guide = "none")+
+  theme(plot.margin = margin(t = 1,
+                             r = 10,
+                             b = 1,
+                             l = 1),
+        panel.border = element_blank(),
+        panel.spacing.x = unit(0, "lines"),
+        panel.spacing.y = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.text.y = element_text(size = 9),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))
+
+# examine plot
+s_surv
+
+# export
+# cairo_pdf(file = "analysis/figures/s_surv_nat.pdf",
+#           width = 3.5, height = 3, family = "Arial")
+# s_surv
+# dev.off()
+
+#=========================================================================================

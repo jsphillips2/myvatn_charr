@@ -60,7 +60,7 @@ theme_set(theme_bw() %+replace%
 
 # year breaks
 year_breaks <- c(1990, 2005, 2020)
-year_limits <- c(1986, 2020)
+year_limits <- c(1986, 2020.2)
 
 # stage colors
 stage_colors <- c("firebrick","dodgerblue","magenta4","goldenrod")
@@ -170,6 +170,12 @@ x_pred <- x_full %>%
             hi = quantile(y_sim, probs = c(0.95))) %>%
   ungroup()
 
+# create jitter manually (to be constent across panels)
+set.seed(2e2)
+site_data_jitter<- site_data %>%
+  mutate(year_jitter = year + rnorm(n = length(x_pred$year), mean  = 0, sd = 0.2))
+
+
 # plot annotation
 labs <- x_full %>%
   tidyr::expand( stage) %>%
@@ -192,26 +198,34 @@ p_catch_a <- ggplot(data = x_pred,
             inherit.aes = F)+
   geom_ribbon(aes(ymin = lo,
                   ymax = hi),
-              alpha = 0.2,
+              alpha = 0.1,
               linetype = 0)+
-  geom_jitter(data = site_data,
-              aes(x = year,
-                  y = count),
-              shape = 16,
-              size = 0.5,
-              alpha = 0.5)+
-  geom_line(size = 0.5)+
+  geom_point(data = site_data_jitter,
+             aes(x = year_jitter,
+                 y = count),
+             shape = 16,
+             size = 0.5,
+             alpha = 0.3)+
+  geom_line(size = 0.6)+
+  geom_line(data = site_data_jitter %>% 
+              group_by(year, stage) %>%
+              summarize(count = mean(count)),
+            aes(x = year,
+                y = count),
+            linetype = "33",
+            size = 0.5,
+            color = "gray30")+
   scale_y_continuous("Survey catch",
                      trans = "log1p",
-                     breaks = c(0, 10, 100))+
+                     breaks = c(0, 5, 25, 125))+
   scale_x_continuous("",
                      breaks = year_breaks,
                      labels = NULL,
-                     limits = year_limits)+
+                     limits = year_limits + c(-0.5, 0.5))+
   scale_color_manual(values = stage_colors,
-                     guide = F)+
+                     guide = "none")+
   scale_fill_manual(values = stage_colors,
-                    guide = F)+
+                    guide = "none")+
   theme(plot.margin = margin(t = 1,
                              r = 10,
                              b = 1,
@@ -311,25 +325,33 @@ p_catch_b <- ggplot(data = x_pred_reduced,
             inherit.aes = F)+
   geom_ribbon(aes(ymin = lo,
                   ymax = hi),
-              alpha = 0.2,
+              alpha = 0.1,
               linetype = 0)+
-  geom_jitter(data = site_data,
-              aes(x = year,
+  geom_point(data = site_data_jitter,
+              aes(x = year_jitter,
                   y = count),
               shape = 16,
               size = 0.5,
-              alpha = 0.5)+
-  geom_line(size = 0.5)+
+              alpha = 0.3)+
+  geom_line(size = 0.6)+
+  geom_line(data = site_data_jitter %>% 
+               group_by(year, stage) %>%
+               summarize(count = mean(count)),
+             aes(x = year,
+                 y = count),
+             linetype = "33",
+             size = 0.5,
+             color = "gray30")+
   scale_y_continuous("Survey catch",
                      trans = "log1p",
-                     breaks = c(0, 10, 100))+
+                     breaks = c(0, 5, 25, 125))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
-                     limits = year_limits)+
+                     limits = year_limits+c(-0.5, 0.5))+
   scale_color_manual(values = stage_colors,
-                     guide = F)+
+                     guide = "none")+
   scale_fill_manual(values = stage_colors,
-                    guide = F)+
+                    guide = "none")+
   theme(plot.margin = margin(t = 1,
                              r = 10,
                              b = 1,
@@ -352,7 +374,7 @@ p_catch <- plot_grid(NULL, p_catch_a, NULL, p_catch_b,
                                "a: time-varying rates",
                                "",
                                "b: fixed rates"),
-                    label_size = 12,
+                    label_size = 10,
                     label_fontface = "plain",
                     hjust = c(0, 0, 0, 0),
                     vjust = c(0, -1.4, 0, -1.4))
@@ -426,15 +448,15 @@ p_dens <- ggplot(data = x_fit,
               linetype = 0)+
   scale_y_continuous(Estimated~density~(`#`~station^{-1}),
                      trans = "log",
-                     breaks = c(0.5,  50,  5000),
-                     labels = c("0.5",  "50",  "5000"))+
+                     breaks = c(0.5, 5, 50, 500, 5000),
+                     labels = c("0.5", "5", "50", "500", "5000"))+
   scale_x_continuous("Year",
-                     breaks = year_breaks,
+                     breaks = c(1990, 2000, 2010, 2020),
                      limits = year_limits + c(0, 4))+
   scale_color_manual(values = stage_colors,
-                     guide = F)+
+                     guide = "none")+
   scale_fill_manual(values = stage_colors,
-                    guide = F)+
+                    guide = "none")+
   theme(panel.border = element_blank(),
         panel.spacing = unit(0, "lines"),
         strip.text.x = element_blank(),
@@ -539,6 +561,7 @@ labs <- x_full %>%
   mutate(x = mean(year_limits),
          y = 7)
 
+surv_breaks <- c(0.01, 0.5, 0.99)
 # plot
 p_surv <- ggplot(data = ls_fit,
                  aes(x = year, 
@@ -547,7 +570,7 @@ p_surv <- ggplot(data = ls_fit,
   facet_rep_wrap(~stage)+
   geom_hline(yintercept = 0, 
              linetype = 2, 
-             size = 0.3,
+             size = 0.5,
              color = "gray50")+
   geom_text(data = labs,
             aes(label = stage,
@@ -567,16 +590,17 @@ p_surv <- ggplot(data = ls_fit,
             aes(x = year,
                 y = fit),
             size = 0.5)+
-  scale_y_continuous("logit (survival probability)",
-                     breaks = c(-5, 0, 5),
-                     limits = c(-7.2, 7.2))+
+  scale_y_continuous("Survival probability",
+                     breaks =log(surv_breaks / (1 - surv_breaks)),
+                     limits = c(-7.2, 7.2),
+                     labels = surv_breaks)+
   scale_x_continuous("Year",
                      breaks = year_breaks,
                      limits = year_limits)+
   scale_color_manual(values = stage_colors,
-                     guide = F)+
+                     guide = "none")+
   scale_fill_manual(values = stage_colors,
-                    guide = F)+
+                    guide = "none")+
   theme(plot.margin = margin(t = 1,
                              r = 10,
                              b = 1,
@@ -585,6 +609,7 @@ p_surv <- ggplot(data = ls_fit,
         panel.spacing.x = unit(0, "lines"),
         panel.spacing.y = unit(0, "lines"),
         strip.text.x = element_blank(),
+        axis.text.y = element_text(size = 9),
         axis.line.x = element_line(size = 0.25),
         axis.line.y = element_line(size = 0.25))
 
@@ -658,9 +683,10 @@ p_rec <- ggplot(data = lr_fit,
             aes(x = year,
                 y = fit),
             size = 0.5)+
-  scale_y_continuous(log~(recruitment~capita^{-1}),
-                     limits = c(-1, 9),
-                     breaks = c(-1, 2, 5, 8))+
+  scale_y_continuous(Recruitment~capita^{-1},
+                     limits = c(0.5, 8.5),
+                     breaks = log(c(3, 30, 300, 3000)),
+                     labels = c(3, 30, 300, 3000))+
   scale_x_continuous("Year",
                      breaks = year_breaks,
                      limits = year_limits)+
@@ -691,55 +717,55 @@ p_rec
 #=========================================================================================
 
 # extract population density from MCMC (subset 2000)
-set.seed(1e3)
-dem_pars <- {fit_sum %>%
-    filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
-           !str_detect(.$var, "ls\\["),
-           !str_detect(.$var, "zs\\["),
-           !str_detect(.$var, "lr\\["),
-           !str_detect(.$var, "zr\\["))}$var
-dem_full <- rstan::extract(fit, pars = dem_pars) %>%
-  parallel::mclapply(as_tibble) %>%
-  bind_cols() %>%
-  set_names(dem_pars) %>%
-  sample_n(2000) %>%
-  mutate(step = row_number()) %>%
-  gather(var, val, -step) %>%
-  mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
-         age = ifelse(name == "r",
-                      1,
-                      strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
-         time = ifelse(name == "r",
-                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
-                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
-         year = sort(unique(site_data$year))[time])
-
-# define matrix of zeros for storing values
-mat0 <- matrix(0, nrow = 4, ncol = 4)
-
-# fill matrix and calculate asymptotic growth rate
-lambda_full <- dem_full %>%
-  split(.$step) %>%
-  parallel::mclapply(function(x_){
-    x_ %>% split(.$year) %>%
-      lapply(function(xx_){
-        v_ = xx_$val
-        mat_ <- mat0
-        mat_[1, 4] <- v_[1]
-        mat_[2, 1] <- v_[2]
-        mat_[3, 2] <- v_[3]
-        mat_[4, 3] <- v_[4]
-        mat_[4, 4] <- v_[5]
-        lam_ = eigen.analysis(mat_)$lambda1
-        return(tibble(year = unique(xx_$year),
-                      lam = lam_))
-      }) %>%
-      bind_rows()
-  }) %>% bind_rows()
-
+# set.seed(1e3)
+# dem_pars <- {fit_sum %>%
+#     filter(str_detect(.$var, "s\\[") | str_detect(.$var, "r\\["),
+#            !str_detect(.$var, "ls\\["),
+#            !str_detect(.$var, "zs\\["),
+#            !str_detect(.$var, "lr\\["),
+#            !str_detect(.$var, "zr\\["))}$var
+# dem_full <- rstan::extract(fit, pars = dem_pars) %>%
+#   parallel::mclapply(as_tibble) %>%
+#   bind_cols() %>%
+#   set_names(dem_pars) %>%
+#   sample_n(2000) %>%
+#   mutate(step = row_number()) %>%
+#   gather(var, val, -step) %>%
+#   mutate(name = strsplit(var, "\\[|\\]|,") %>% map_chr(~as.character(.x[1])),
+#          age = ifelse(name == "r",
+#                       1,
+#                       strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2]))),
+#          time = ifelse(name == "r",
+#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[2])),
+#                        strsplit(var, "\\[|\\]|,") %>% map_int(~as.integer(.x[3]))),
+#          year = sort(unique(site_data$year))[time])
+# 
+# # define matrix of zeros for storing values
+# mat0 <- matrix(0, nrow = 4, ncol = 4)
+# 
+# # fill matrix and calculate asymptotic growth rate
+# lambda_full <- dem_full %>%
+#   split(.$step) %>%
+#   parallel::mclapply(function(x_){
+#     x_ %>% split(.$year) %>%
+#       lapply(function(xx_){
+#         v_ = xx_$val
+#         mat_ <- mat0
+#         mat_[1, 4] <- v_[1]
+#         mat_[2, 1] <- v_[2]
+#         mat_[3, 2] <- v_[3]
+#         mat_[4, 3] <- v_[4]
+#         mat_[4, 4] <- v_[5]
+#         lam_ = eigen.analysis(mat_)$lambda1
+#         return(tibble(year = unique(xx_$year),
+#                       lam = lam_))
+#       }) %>%
+#       bind_rows()
+#   }) %>% bind_rows()
+# 
 # write_csv(lambda_full, "analysis/lambda_full.csv")
 
-# lambda_full <- read_csv("analysis/lambda_full.csv")
+lambda_full <- read_csv("analysis/lambda_full.csv")
 
 # mean lambda
 lambda_full %>%
@@ -795,7 +821,7 @@ p_lam <- ggplot(data = lambda,
                     y = mi))+
   geom_hline(yintercept = 1, 
              linetype = 2, 
-             size = 0.3,
+             size = 0.5,
              color = "gray50")+
   geom_ribbon(aes(ymin = lo,
                   ymax = hi),
@@ -809,7 +835,7 @@ p_lam <- ggplot(data = lambda,
             aes(x = year,
                 y = fit),
             size = 0.5)+
-  scale_y_continuous("Population growth rate",
+  scale_y_continuous(Population~growth~rate~(),
                      trans = "log",
                      breaks = c(1/3, 1, 3),
                      labels = c("1/3","1","3"),
@@ -834,6 +860,77 @@ p_lam
 # cairo_pdf(file = "analysis/figures/p_lam.pdf",
 #           width = 3.5, height = 2.5, family = "Arial")
 # p_lam
+# dev.off()
+
+#=========================================================================================
+
+
+
+
+#=========================================================================================
+#========== Ricker model
+#=========================================================================================
+
+# prepare data
+ricker_data <- x_fit %>%
+  group_by(year) %>%
+  summarize(pop = sum(mi)) %>%
+  full_join(lr_fit %>%
+              select(year, mi) %>%
+              rename(lpc_rec = mi)) %>%
+  ungroup() %>%
+  full_join(x_fit %>%
+              filter(stage == "age 4+") %>%
+              select(year, mi) %>%
+              rename(adults = mi)) %>%
+  mutate(rec = exp(lpc_rec) * adults) %>%
+  na.omit()
+
+# fit Ricker stock-recruitment curve on log scale
+ricker_model <- nls(log(rec) ~ a + log(pop) - pop * (1/b),
+         start = list(a = 1, b = 1),
+         data = ricker_data)
+summary(ricker_model)
+
+# generated fitted valuees
+ricker_fit <- tibble(pop = seq(min(ricker_data$pop),
+                                   max(ricker_data$pop), 
+                                   length.out = 1000))
+ricker_fit$fit <- exp(predict(ricker_model, newdata = ricker_fit))
+
+# plot
+p_ricker <- ggplot(data = ricker_data,
+                   aes(x = pop, 
+                       y=rec))+
+  geom_vline(xintercept = coef(ricker_model)["b"],
+             linetype = 2,
+             size = 0.5,
+             color = "gray50")+
+  geom_point(size = 1.75,
+             alpha = 0.5)+
+  geom_line(data = ricker_fit,
+            size = 0.5,
+            aes(x = pop,
+                y = fit))+
+  scale_y_continuous(Recruitment~(`#`~station^{-1}),
+                     trans = "log",
+                     breaks = c(30, 300, 3000))+
+  scale_x_continuous(Population~density~(`#`~station^{-1}),
+                     breaks = c(0, 2000, 4000, 6000))+
+  theme(panel.border = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text.x = element_blank(),
+        axis.line.x = element_line(size = 0.25),
+        axis.line.y = element_line(size = 0.25))
+
+
+# examine plot
+p_ricker
+
+# export
+# cairo_pdf(file = "analysis/figures/p_ricker.pdf",
+#           width = 3.5, height = 2.5, family = "Arial")
+# p_ricker
 # dev.off()
 
 #=========================================================================================
